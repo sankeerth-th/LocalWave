@@ -1,0 +1,901 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0617B4E95EA7C8D1E08674FD /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69E38A3EE548D3C4483891AC /* GlassCard.swift */; };
+		076EDB06432B2C9611C8BDFA /* LocalWaveError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805BD47235FC570168C87887 /* LocalWaveError.swift */; };
+		0B26286CD16ADE20CDEB94EF /* Identifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D85F8CAC8213D3309BA13D2 /* Identifiers.swift */; };
+		0E57C0AE297FD18A1935A387 /* WakeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2A106D551764896B6402D9 /* WakeButton.swift */; };
+		0F81D3A7B34A1A29FF312BE3 /* RepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F73CA60DE6615021C5F8497 /* RepositoryTests.swift */; };
+		10DBE39E99C0F0FC206DF5FC /* IdentityFingerprintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E9B4A6A1D612DC56EA561C /* IdentityFingerprintView.swift */; };
+		14B340ADF46E64C311CF402F /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBC7684B47DD686975E1165A /* ChatMessage.swift */; };
+		196CD14B672A1BB5492D390C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E247234C85BBF4B5C0555B /* OnboardingView.swift */; };
+		19E9ACD55A9CFAE307FBFD52 /* LWSymbols.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4934BA8A8E5CFD0A137CF0 /* LWSymbols.swift */; };
+		1A28156BDC38C76F0356F33F /* SignalStrengthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996341FF73E1695558BCE875 /* SignalStrengthView.swift */; };
+		1AF6109B76D984B016B082C1 /* BLEPacketFramer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6340D5B92E63844885000985 /* BLEPacketFramer.swift */; };
+		210E9BDD95986E169126F0CE /* BLEUUIDFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B6A7AE153A31ACD44AE455A /* BLEUUIDFactory.swift */; };
+		2117D33629CA669CFF5D8F36 /* PeopleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F71C49D34E66C886B3BC10 /* PeopleView.swift */; };
+		2251564AF688F5A4C07AFE92 /* LocalIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 773F493F03BA633AE94B960E /* LocalIdentity.swift */; };
+		26546A74896CA36DCDBBB508 /* SwiftDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D81C70C544F81EFC4E24D9E /* SwiftDataStore.swift */; };
+		27A3D53152936F85F6D0EE14 /* FrequencyJoinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C6F806F08CE067DF8130965 /* FrequencyJoinView.swift */; };
+		2933A3140CC9327756C9471D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CA9E72DD3638EFA3772097 /* SettingsView.swift */; };
+		341B21F6D62A84CBE554E92A /* PresencePayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF7B5ACCF9F9B18C2912EEE /* PresencePayload.swift */; };
+		3E7463B02A7DC533CA132507 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB2104528202EAE0E922EF1 /* ChatView.swift */; };
+		405C3F11D8686916E1FB3575 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A6488C82EEE86C9CB5284B /* SettingsViewModelTests.swift */; };
+		40FA09D70B29F7F997EC587D /* CryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B719EFD065862EB1A6B0BC /* CryptoTests.swift */; };
+		4B3EBDBA7B5CF953765021FF /* SessionCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44C0B1F344B20EC598B5394 /* SessionCrypto.swift */; };
+		539A6F39A144CEC6BD92A436 /* ChannelCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E8EFD2C3AB6D60813117E2 /* ChannelCode.swift */; };
+		5462AE259DD57B93CE4C2EFF /* LocalWaveBluetoothTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A8BA02D19F14384F4E9777 /* LocalWaveBluetoothTransport.swift */; };
+		590EF3B8FD6C2D3C653D2330 /* PacketFramingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA719B5CE8A4EA218AF923E /* PacketFramingTests.swift */; };
+		6000F81E04C86A1E53E6FB19 /* FrequencyPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6BD24B7D49B81A77DAB656A /* FrequencyPill.swift */; };
+		634DAB276142E99554B72CA0 /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86ED6F1845B49340AFDD58D8 /* LocalStore.swift */; };
+		636C66171D600752B50F96C7 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A9D9ABDA3E1A5C1E6F648A /* AppRootView.swift */; };
+		63C77B37A8387115288DD259 /* ChatViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0648E78A511B84619DF7BBD3 /* ChatViewModelTests.swift */; };
+		65478F4DF840979C95E59DF5 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65636CD2797EDA4F551527B /* OnboardingViewModel.swift */; };
+		65B839D50A44E184C65DDAF4 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = E606BF3918A24F2E25EB4E1D /* MessageBubble.swift */; };
+		65D72B8267E2D2FE31302B95 /* SecureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF7E2BC53DCABE94414BCD84 /* SecureEnvelope.swift */; };
+		6924C262A702DFB0621F56E1 /* LWMaterials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 158B7ABD59FBE97D676219B5 /* LWMaterials.swift */; };
+		697D0332B035B78CFAE57FC4 /* MessageRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC544D646979A3DEEC306F0A /* MessageRepository.swift */; };
+		6F73BEC9FF87D6D5D7084547 /* PrivacyExplanationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05A5B7816B37199F1B926259 /* PrivacyExplanationView.swift */; };
+		7082781A35BCA91D806E2FCD /* DisplayNameSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3774F8CA9FB3747D0DF58D /* DisplayNameSetupView.swift */; };
+		728971ED28434C8DD8007CBD /* PermissionEducationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491B5602FA13923461B3BA8A /* PermissionEducationView.swift */; };
+		7913D441420E9123BF943D3B /* LocalWaveProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA677A14675B2FD2A9AAF7BC /* LocalWaveProtocols.swift */; };
+		7D1332A7B505B58EF54A5A22 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B618F4CDAE7194CDC1D6CA /* AppEnvironment.swift */; };
+		8313920FF9F8BA46320CF964 /* MessageStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645E96E178D8D57218927267 /* MessageStatusView.swift */; };
+		84259615C6104C366403660B /* PeerDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBEE206B72B43D006933BD7 /* PeerDetailSheet.swift */; };
+		8B2CF68A08B455FCB013765D /* IdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8FC25C673DA552097549FB /* IdentityStore.swift */; };
+		9D82AB7A97CDCA672A9F2317 /* LocalNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414BADD7D420BEB300E6A23A /* LocalNotificationService.swift */; };
+		A91D46D83807EA63B21E0FF9 /* Envelopes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC3F7F4C45057A8BEE8A666 /* Envelopes.swift */; };
+		ABB5506E7ED4F1FB97B77239 /* MockLocalWaveEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D6BC3F777916DAFAF1B4A1 /* MockLocalWaveEngine.swift */; };
+		AE3CB33A58DEAC1AA992A8A6 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C077BFE90CD5F2B74FBE1869 /* SettingsViewModel.swift */; };
+		B2055732E76AC2C209DBCCDA /* CryptoErrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E4B6742993F009C4048103 /* CryptoErrors.swift */; };
+		B46621C342C49C5F485AC87B /* PeopleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457BABD435D7A9781642C7B3 /* PeopleViewModelTests.swift */; };
+		B710F921175527CF029B0F59 /* PeerRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F91F3B5576C0798AACC762F /* PeerRepository.swift */; };
+		B7D717D2352CDA17FFD22FFD /* PeerAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608ED6A16DD8FB3E3AD16405 /* PeerAvatar.swift */; };
+		BABD51CC30A92C15D13395A3 /* LWAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 638F892150A4CAB0184FD958 /* LWAnimations.swift */; };
+		BC55880EFD41311CC30CCDCC /* ChatHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E6617E74426D6BD28D33CA4 /* ChatHeaderView.swift */; };
+		BD5949164ACEE779C7DCAE99 /* DebugDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA757389B6A139C9E9E3E96 /* DebugDiagnosticsView.swift */; };
+		C1868B391491E59A3F003715 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0619B47FB694F549CAB57E7D /* EmptyStateView.swift */; };
+		C1A9B9DE6F4645ACF6E8E03B /* ChannelSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196A6203BD04827F168E4E86 /* ChannelSettingsView.swift */; };
+		C2723886A2D4C1E8A166754A /* PermissionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22042D5ADB44A7C301999766 /* PermissionBanner.swift */; };
+		C84315FF6B2CD75E3663A71B /* ChannelKeyDerivation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEE90AF6E6BFED5714F5DEC /* ChannelKeyDerivation.swift */; };
+		CAE55756C738D0AC989B9D0D /* MessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDEE3B05A8719A75AE5A75DD /* MessageListView.swift */; };
+		CC88E2F7706732E989994F9A /* OnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DFB1B46B6BF2C4008DA7DE2 /* OnboardingViewModelTests.swift */; };
+		CCBF185C58949FB9BAEC6704 /* LocalWaveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93DFCABA0F946A3E7E97EDF7 /* LocalWaveApp.swift */; };
+		CE6BE6E99F2750CA0753B70C /* ChannelDerivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5511B662EB512BB0CBEB4F9D /* ChannelDerivationTests.swift */; };
+		D204A8ECF936285ECB620C74 /* PeerRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E707C7BA8D2CC9BAB04150 /* PeerRowView.swift */; };
+		D39F815EF05458D00F037C00 /* PeerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E1E2CE6D79B4C068F27349B /* PeerProfile.swift */; };
+		D6DBB60776E9307D1F46AA63 /* LocalWaveEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3784304F645387DE33E9DEFD /* LocalWaveEngine.swift */; };
+		DAA86EF0F99F3FF45AE6B0A4 /* PeopleViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58878E7C777B58D456C7E1 /* PeopleViewModel.swift */; };
+		DF2C276C3FD8E91DA1AACF4E /* ConnectionScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BF8803A521C7ADDCA21017 /* ConnectionScheduler.swift */; };
+		E01E7D1B1247A917D74A3C5D /* JSONRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221DA02EC39381B34F5FA59D /* JSONRepositories.swift */; };
+		E09AB8C8BA407AA12C2A9B3D /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B39A79C42DA9260FDD83377 /* WelcomeView.swift */; };
+		E5E09961B65BA560D24C3033 /* TransportPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F196A219E8D371146DA235 /* TransportPacket.swift */; };
+		E8C447B2DDD9DA98E3DE97D8 /* PeerDiscoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177248869FA2C8AC7D45E311 /* PeerDiscoveryEngine.swift */; };
+		EC11D839D97476A69AE73DF2 /* FrequencyHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E199FC27B0655455E10FEEB6 /* FrequencyHeaderView.swift */; };
+		ED23988696E0B357649C970C /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C63E8623092316ECA44DF8 /* SectionHeader.swift */; };
+		EEC7F7DCB6FC9FEC14510596 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD78BD244F675E3BD68BDF6 /* PreviewData.swift */; };
+		F1892B28BFE414C7AFCF8BD8 /* TransportState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5ACB8F817FAE6F57224630 /* TransportState.swift */; };
+		F55D243AC9CB1310F31FCE65 /* PresenceAdvertiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3BF5EE7AF9DBF9EC36EAF57 /* PresenceAdvertiser.swift */; };
+		F57FE4E20F6B6AC3FECEE403 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DDB802F3F2F1C30BC38FE4C /* ChatViewModel.swift */; };
+		F75674F2583E350313849741 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33CF4D07A40555C2599F655 /* AppStore.swift */; };
+		FED78F5AA72D9818EA3DC374 /* MessageComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4433322015B01DAACCBEDE0 /* MessageComposerView.swift */; };
+		FF1787024F29462DA9B4DCF8 /* LWTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1EE904E7AECD39ABCD51FA /* LWTheme.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F8BF416117BC77AA63195EBE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 619ECE158AA897E2034CA094 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 375BC51F5594B63CA8A7628F;
+			remoteInfo = LocalWave;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		00F71C49D34E66C886B3BC10 /* PeopleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleView.swift; sourceTree = "<group>"; };
+		04A6488C82EEE86C9CB5284B /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
+		05A5B7816B37199F1B926259 /* PrivacyExplanationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyExplanationView.swift; sourceTree = "<group>"; };
+		0619B47FB694F549CAB57E7D /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		0648E78A511B84619DF7BBD3 /* ChatViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelTests.swift; sourceTree = "<group>"; };
+		0924864A6577A621D1424AE2 /* LocalWave.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LocalWave.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C6F806F08CE067DF8130965 /* FrequencyJoinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyJoinView.swift; sourceTree = "<group>"; };
+		0DD78BD244F675E3BD68BDF6 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		158B7ABD59FBE97D676219B5 /* LWMaterials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LWMaterials.swift; sourceTree = "<group>"; };
+		177248869FA2C8AC7D45E311 /* PeerDiscoveryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDiscoveryEngine.swift; sourceTree = "<group>"; };
+		196A6203BD04827F168E4E86 /* ChannelSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelSettingsView.swift; sourceTree = "<group>"; };
+		19E4B6742993F009C4048103 /* CryptoErrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoErrors.swift; sourceTree = "<group>"; };
+		1C1EE904E7AECD39ABCD51FA /* LWTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LWTheme.swift; sourceTree = "<group>"; };
+		1D2A106D551764896B6402D9 /* WakeButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeButton.swift; sourceTree = "<group>"; };
+		22042D5ADB44A7C301999766 /* PermissionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionBanner.swift; sourceTree = "<group>"; };
+		221DA02EC39381B34F5FA59D /* JSONRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRepositories.swift; sourceTree = "<group>"; };
+		25F196A219E8D371146DA235 /* TransportPacket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPacket.swift; sourceTree = "<group>"; };
+		2A5ACB8F817FAE6F57224630 /* TransportState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportState.swift; sourceTree = "<group>"; };
+		2DC3F7F4C45057A8BEE8A666 /* Envelopes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Envelopes.swift; sourceTree = "<group>"; };
+		2DDB802F3F2F1C30BC38FE4C /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		3784304F645387DE33E9DEFD /* LocalWaveEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWaveEngine.swift; sourceTree = "<group>"; };
+		3F73CA60DE6615021C5F8497 /* RepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryTests.swift; sourceTree = "<group>"; };
+		414BADD7D420BEB300E6A23A /* LocalNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationService.swift; sourceTree = "<group>"; };
+		41B618F4CDAE7194CDC1D6CA /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		457BABD435D7A9781642C7B3 /* PeopleViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleViewModelTests.swift; sourceTree = "<group>"; };
+		46A8BA02D19F14384F4E9777 /* LocalWaveBluetoothTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWaveBluetoothTransport.swift; sourceTree = "<group>"; };
+		46B58E09968CB416A9AD2E74 /* LocalWaveTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LocalWaveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		491B5602FA13923461B3BA8A /* PermissionEducationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionEducationView.swift; sourceTree = "<group>"; };
+		4DFB1B46B6BF2C4008DA7DE2 /* OnboardingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModelTests.swift; sourceTree = "<group>"; };
+		4E1E2CE6D79B4C068F27349B /* PeerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerProfile.swift; sourceTree = "<group>"; };
+		4E6617E74426D6BD28D33CA4 /* ChatHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHeaderView.swift; sourceTree = "<group>"; };
+		5511B662EB512BB0CBEB4F9D /* ChannelDerivationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelDerivationTests.swift; sourceTree = "<group>"; };
+		5B39A79C42DA9260FDD83377 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		5C1A99A4461E6923DEA99A8F /* LocalWave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LocalWave.entitlements; sourceTree = "<group>"; };
+		5CEE90AF6E6BFED5714F5DEC /* ChannelKeyDerivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelKeyDerivation.swift; sourceTree = "<group>"; };
+		5EBEE206B72B43D006933BD7 /* PeerDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDetailSheet.swift; sourceTree = "<group>"; };
+		608ED6A16DD8FB3E3AD16405 /* PeerAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerAvatar.swift; sourceTree = "<group>"; };
+		6340D5B92E63844885000985 /* BLEPacketFramer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEPacketFramer.swift; sourceTree = "<group>"; };
+		638F892150A4CAB0184FD958 /* LWAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LWAnimations.swift; sourceTree = "<group>"; };
+		645E96E178D8D57218927267 /* MessageStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageStatusView.swift; sourceTree = "<group>"; };
+		69D6BC3F777916DAFAF1B4A1 /* MockLocalWaveEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLocalWaveEngine.swift; sourceTree = "<group>"; };
+		69E38A3EE548D3C4483891AC /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		6B6A7AE153A31ACD44AE455A /* BLEUUIDFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEUUIDFactory.swift; sourceTree = "<group>"; };
+		71CA9E72DD3638EFA3772097 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		71E8EFD2C3AB6D60813117E2 /* ChannelCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelCode.swift; sourceTree = "<group>"; };
+		773F493F03BA633AE94B960E /* LocalIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalIdentity.swift; sourceTree = "<group>"; };
+		7CA757389B6A139C9E9E3E96 /* DebugDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDiagnosticsView.swift; sourceTree = "<group>"; };
+		7D85F8CAC8213D3309BA13D2 /* Identifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identifiers.swift; sourceTree = "<group>"; };
+		805BD47235FC570168C87887 /* LocalWaveError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWaveError.swift; sourceTree = "<group>"; };
+		82E9B4A6A1D612DC56EA561C /* IdentityFingerprintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityFingerprintView.swift; sourceTree = "<group>"; };
+		86ED6F1845B49340AFDD58D8 /* LocalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
+		8D81C70C544F81EFC4E24D9E /* SwiftDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStore.swift; sourceTree = "<group>"; };
+		8E3774F8CA9FB3747D0DF58D /* DisplayNameSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayNameSetupView.swift; sourceTree = "<group>"; };
+		8F91F3B5576C0798AACC762F /* PeerRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerRepository.swift; sourceTree = "<group>"; };
+		91B719EFD065862EB1A6B0BC /* CryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoTests.swift; sourceTree = "<group>"; };
+		93DFCABA0F946A3E7E97EDF7 /* LocalWaveApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWaveApp.swift; sourceTree = "<group>"; };
+		996341FF73E1695558BCE875 /* SignalStrengthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalStrengthView.swift; sourceTree = "<group>"; };
+		9BF7B5ACCF9F9B18C2912EEE /* PresencePayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresencePayload.swift; sourceTree = "<group>"; };
+		A5E707C7BA8D2CC9BAB04150 /* PeerRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerRowView.swift; sourceTree = "<group>"; };
+		AF7E2BC53DCABE94414BCD84 /* SecureEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureEnvelope.swift; sourceTree = "<group>"; };
+		B2A9D9ABDA3E1A5C1E6F648A /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		B2BF8803A521C7ADDCA21017 /* ConnectionScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionScheduler.swift; sourceTree = "<group>"; };
+		B3BF5EE7AF9DBF9EC36EAF57 /* PresenceAdvertiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresenceAdvertiser.swift; sourceTree = "<group>"; };
+		B4C63E8623092316ECA44DF8 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
+		B6BD24B7D49B81A77DAB656A /* FrequencyPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyPill.swift; sourceTree = "<group>"; };
+		BA677A14675B2FD2A9AAF7BC /* LocalWaveProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWaveProtocols.swift; sourceTree = "<group>"; };
+		C077BFE90CD5F2B74FBE1869 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		C2E247234C85BBF4B5C0555B /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		CBB2104528202EAE0E922EF1 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		CC544D646979A3DEEC306F0A /* MessageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRepository.swift; sourceTree = "<group>"; };
+		D33CF4D07A40555C2599F655 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		D65636CD2797EDA4F551527B /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		DF8FC25C673DA552097549FB /* IdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityStore.swift; sourceTree = "<group>"; };
+		E199FC27B0655455E10FEEB6 /* FrequencyHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyHeaderView.swift; sourceTree = "<group>"; };
+		E44C0B1F344B20EC598B5394 /* SessionCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCrypto.swift; sourceTree = "<group>"; };
+		E606BF3918A24F2E25EB4E1D /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
+		EBC7684B47DD686975E1165A /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		EE4934BA8A8E5CFD0A137CF0 /* LWSymbols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LWSymbols.swift; sourceTree = "<group>"; };
+		EFA719B5CE8A4EA218AF923E /* PacketFramingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketFramingTests.swift; sourceTree = "<group>"; };
+		F4433322015B01DAACCBEDE0 /* MessageComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposerView.swift; sourceTree = "<group>"; };
+		FDEE3B05A8719A75AE5A75DD /* MessageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageListView.swift; sourceTree = "<group>"; };
+		FE58878E7C777B58D456C7E1 /* PeopleViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleViewModel.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		036B58DAC8682CB6DD67246D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0924864A6577A621D1424AE2 /* LocalWave.app */,
+				46B58E09968CB416A9AD2E74 /* LocalWaveTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		051278196E5F64FAF4A96421 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				69D6BC3F777916DAFAF1B4A1 /* MockLocalWaveEngine.swift */,
+				0DD78BD244F675E3BD68BDF6 /* PreviewData.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		069C80FF580369AFEC37A151 /* Crypto */ = {
+			isa = PBXGroup;
+			children = (
+				5CEE90AF6E6BFED5714F5DEC /* ChannelKeyDerivation.swift */,
+				19E4B6742993F009C4048103 /* CryptoErrors.swift */,
+				DF8FC25C673DA552097549FB /* IdentityStore.swift */,
+				AF7E2BC53DCABE94414BCD84 /* SecureEnvelope.swift */,
+				E44C0B1F344B20EC598B5394 /* SessionCrypto.swift */,
+			);
+			path = Crypto;
+			sourceTree = "<group>";
+		};
+		079246F1C34471B9FA4E4E27 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				638F892150A4CAB0184FD958 /* LWAnimations.swift */,
+				158B7ABD59FBE97D676219B5 /* LWMaterials.swift */,
+				EE4934BA8A8E5CFD0A137CF0 /* LWSymbols.swift */,
+				1C1EE904E7AECD39ABCD51FA /* LWTheme.swift */,
+				86D9DD570A622D959F18328D /* Components */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		2810354DCF1A5DD40DC3B7F8 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				41B618F4CDAE7194CDC1D6CA /* AppEnvironment.swift */,
+				B2A9D9ABDA3E1A5C1E6F648A /* AppRootView.swift */,
+				93DFCABA0F946A3E7E97EDF7 /* LocalWaveApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		2BFC13CD0D068836A065D7FA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				5C1A99A4461E6923DEA99A8F /* LocalWave.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		37A03F36F37BF910E1E63F06 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				221DA02EC39381B34F5FA59D /* JSONRepositories.swift */,
+				86ED6F1845B49340AFDD58D8 /* LocalStore.swift */,
+				CC544D646979A3DEEC306F0A /* MessageRepository.swift */,
+				8F91F3B5576C0798AACC762F /* PeerRepository.swift */,
+				8D81C70C544F81EFC4E24D9E /* SwiftDataStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		3AD1CD59DB7A43408E021E24 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				414BADD7D420BEB300E6A23A /* LocalNotificationService.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		446EC6F97BE783B11C0FD2C3 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				4E6617E74426D6BD28D33CA4 /* ChatHeaderView.swift */,
+				CBB2104528202EAE0E922EF1 /* ChatView.swift */,
+				F4433322015B01DAACCBEDE0 /* MessageComposerView.swift */,
+				FDEE3B05A8719A75AE5A75DD /* MessageListView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		4AB8A22A755FAA6C3B0254A8 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				446EC6F97BE783B11C0FD2C3 /* Chat */,
+				D8B6D01FD8DE536F9B7DBF1C /* Onboarding */,
+				4DD03ADDA37B0040119A5E94 /* People */,
+				707DBA7D47C9F04AFEF4E576 /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		4DD03ADDA37B0040119A5E94 /* People */ = {
+			isa = PBXGroup;
+			children = (
+				E199FC27B0655455E10FEEB6 /* FrequencyHeaderView.swift */,
+				5EBEE206B72B43D006933BD7 /* PeerDetailSheet.swift */,
+				A5E707C7BA8D2CC9BAB04150 /* PeerRowView.swift */,
+				00F71C49D34E66C886B3BC10 /* PeopleView.swift */,
+			);
+			path = People;
+			sourceTree = "<group>";
+		};
+		511E2FC70013357ED308433A /* LocalWave */ = {
+			isa = PBXGroup;
+			children = (
+				2810354DCF1A5DD40DC3B7F8 /* App */,
+				B9EAF0BDF071F40D26A5E131 /* AppState */,
+				97BED4156B38A0698367C448 /* Core */,
+				079246F1C34471B9FA4E4E27 /* DesignSystem */,
+				4AB8A22A755FAA6C3B0254A8 /* Features */,
+				051278196E5F64FAF4A96421 /* Mocks */,
+				2BFC13CD0D068836A065D7FA /* Resources */,
+			);
+			path = LocalWave;
+			sourceTree = "<group>";
+		};
+		601BF90BBC3A029C3DA2A9BD /* AppState */ = {
+			isa = PBXGroup;
+			children = (
+				3784304F645387DE33E9DEFD /* LocalWaveEngine.swift */,
+			);
+			path = AppState;
+			sourceTree = "<group>";
+		};
+		707DBA7D47C9F04AFEF4E576 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				196A6203BD04827F168E4E86 /* ChannelSettingsView.swift */,
+				7CA757389B6A139C9E9E3E96 /* DebugDiagnosticsView.swift */,
+				82E9B4A6A1D612DC56EA561C /* IdentityFingerprintView.swift */,
+				05A5B7816B37199F1B926259 /* PrivacyExplanationView.swift */,
+				71CA9E72DD3638EFA3772097 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		86D9DD570A622D959F18328D /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				0619B47FB694F549CAB57E7D /* EmptyStateView.swift */,
+				B6BD24B7D49B81A77DAB656A /* FrequencyPill.swift */,
+				69E38A3EE548D3C4483891AC /* GlassCard.swift */,
+				E606BF3918A24F2E25EB4E1D /* MessageBubble.swift */,
+				645E96E178D8D57218927267 /* MessageStatusView.swift */,
+				608ED6A16DD8FB3E3AD16405 /* PeerAvatar.swift */,
+				22042D5ADB44A7C301999766 /* PermissionBanner.swift */,
+				B4C63E8623092316ECA44DF8 /* SectionHeader.swift */,
+				996341FF73E1695558BCE875 /* SignalStrengthView.swift */,
+				1D2A106D551764896B6402D9 /* WakeButton.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		8707096742AA67777EB4C0CC /* ChannelDerivationTests */ = {
+			isa = PBXGroup;
+			children = (
+				5511B662EB512BB0CBEB4F9D /* ChannelDerivationTests.swift */,
+			);
+			path = ChannelDerivationTests;
+			sourceTree = "<group>";
+		};
+		97BED4156B38A0698367C448 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				601BF90BBC3A029C3DA2A9BD /* AppState */,
+				9D1DDA3D4688F87C6D3D47E3 /* Bluetooth */,
+				069C80FF580369AFEC37A151 /* Crypto */,
+				EC8072A9C10F3C508725E145 /* Models */,
+				3AD1CD59DB7A43408E021E24 /* Notifications */,
+				37A03F36F37BF910E1E63F06 /* Persistence */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		9967346D4EBB45D9FD9005F0 /* CryptoTests */ = {
+			isa = PBXGroup;
+			children = (
+				91B719EFD065862EB1A6B0BC /* CryptoTests.swift */,
+			);
+			path = CryptoTests;
+			sourceTree = "<group>";
+		};
+		9D1DDA3D4688F87C6D3D47E3 /* Bluetooth */ = {
+			isa = PBXGroup;
+			children = (
+				6340D5B92E63844885000985 /* BLEPacketFramer.swift */,
+				6B6A7AE153A31ACD44AE455A /* BLEUUIDFactory.swift */,
+				B2BF8803A521C7ADDCA21017 /* ConnectionScheduler.swift */,
+				46A8BA02D19F14384F4E9777 /* LocalWaveBluetoothTransport.swift */,
+				177248869FA2C8AC7D45E311 /* PeerDiscoveryEngine.swift */,
+				B3BF5EE7AF9DBF9EC36EAF57 /* PresenceAdvertiser.swift */,
+				9BF7B5ACCF9F9B18C2912EEE /* PresencePayload.swift */,
+			);
+			path = Bluetooth;
+			sourceTree = "<group>";
+		};
+		A172753E6B770CA4DB5F063E /* PacketFramingTests */ = {
+			isa = PBXGroup;
+			children = (
+				EFA719B5CE8A4EA218AF923E /* PacketFramingTests.swift */,
+			);
+			path = PacketFramingTests;
+			sourceTree = "<group>";
+		};
+		AFD0C0C9722B06B23BF5C053 /* ViewModelTests */ = {
+			isa = PBXGroup;
+			children = (
+				0648E78A511B84619DF7BBD3 /* ChatViewModelTests.swift */,
+				4DFB1B46B6BF2C4008DA7DE2 /* OnboardingViewModelTests.swift */,
+				457BABD435D7A9781642C7B3 /* PeopleViewModelTests.swift */,
+				04A6488C82EEE86C9CB5284B /* SettingsViewModelTests.swift */,
+			);
+			path = ViewModelTests;
+			sourceTree = "<group>";
+		};
+		B02E08A9A2F7D152A505EBB6 /* RepositoryTests */ = {
+			isa = PBXGroup;
+			children = (
+				3F73CA60DE6615021C5F8497 /* RepositoryTests.swift */,
+			);
+			path = RepositoryTests;
+			sourceTree = "<group>";
+		};
+		B20FFD22B943A09EC073C4D2 /* LocalWaveTests */ = {
+			isa = PBXGroup;
+			children = (
+				8707096742AA67777EB4C0CC /* ChannelDerivationTests */,
+				9967346D4EBB45D9FD9005F0 /* CryptoTests */,
+				A172753E6B770CA4DB5F063E /* PacketFramingTests */,
+				B02E08A9A2F7D152A505EBB6 /* RepositoryTests */,
+				AFD0C0C9722B06B23BF5C053 /* ViewModelTests */,
+			);
+			path = LocalWaveTests;
+			sourceTree = "<group>";
+		};
+		B9EAF0BDF071F40D26A5E131 /* AppState */ = {
+			isa = PBXGroup;
+			children = (
+				D33CF4D07A40555C2599F655 /* AppStore.swift */,
+				2DDB802F3F2F1C30BC38FE4C /* ChatViewModel.swift */,
+				D65636CD2797EDA4F551527B /* OnboardingViewModel.swift */,
+				FE58878E7C777B58D456C7E1 /* PeopleViewModel.swift */,
+				C077BFE90CD5F2B74FBE1869 /* SettingsViewModel.swift */,
+			);
+			path = AppState;
+			sourceTree = "<group>";
+		};
+		D8B6D01FD8DE536F9B7DBF1C /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				8E3774F8CA9FB3747D0DF58D /* DisplayNameSetupView.swift */,
+				0C6F806F08CE067DF8130965 /* FrequencyJoinView.swift */,
+				C2E247234C85BBF4B5C0555B /* OnboardingView.swift */,
+				491B5602FA13923461B3BA8A /* PermissionEducationView.swift */,
+				5B39A79C42DA9260FDD83377 /* WelcomeView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		E78299C0A78116ABFC5A7741 = {
+			isa = PBXGroup;
+			children = (
+				511E2FC70013357ED308433A /* LocalWave */,
+				B20FFD22B943A09EC073C4D2 /* LocalWaveTests */,
+				036B58DAC8682CB6DD67246D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		EC8072A9C10F3C508725E145 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				71E8EFD2C3AB6D60813117E2 /* ChannelCode.swift */,
+				EBC7684B47DD686975E1165A /* ChatMessage.swift */,
+				2DC3F7F4C45057A8BEE8A666 /* Envelopes.swift */,
+				7D85F8CAC8213D3309BA13D2 /* Identifiers.swift */,
+				773F493F03BA633AE94B960E /* LocalIdentity.swift */,
+				805BD47235FC570168C87887 /* LocalWaveError.swift */,
+				BA677A14675B2FD2A9AAF7BC /* LocalWaveProtocols.swift */,
+				4E1E2CE6D79B4C068F27349B /* PeerProfile.swift */,
+				25F196A219E8D371146DA235 /* TransportPacket.swift */,
+				2A5ACB8F817FAE6F57224630 /* TransportState.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		375BC51F5594B63CA8A7628F /* LocalWave */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA48C729AD1714BB2849E13B /* Build configuration list for PBXNativeTarget "LocalWave" */;
+			buildPhases = (
+				A6C1B06898CFF6CF066B21AD /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LocalWave;
+			packageProductDependencies = (
+			);
+			productName = LocalWave;
+			productReference = 0924864A6577A621D1424AE2 /* LocalWave.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D79797F529868745F3C9D86E /* LocalWaveTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E3CAA40DAD57D4D5FF17C554 /* Build configuration list for PBXNativeTarget "LocalWaveTests" */;
+			buildPhases = (
+				71B9ABFCE2EF044B302204D6 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B4C470A58570111914817FB7 /* PBXTargetDependency */,
+			);
+			name = LocalWaveTests;
+			packageProductDependencies = (
+			);
+			productName = LocalWaveTests;
+			productReference = 46B58E09968CB416A9AD2E74 /* LocalWaveTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		619ECE158AA897E2034CA094 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					375BC51F5594B63CA8A7628F = {
+						DevelopmentTeam = "";
+					};
+					D79797F529868745F3C9D86E = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 1FAAD7BAE06CC045BEAA9A46 /* Build configuration list for PBXProject "LocalWave" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E78299C0A78116ABFC5A7741;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 036B58DAC8682CB6DD67246D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				375BC51F5594B63CA8A7628F /* LocalWave */,
+				D79797F529868745F3C9D86E /* LocalWaveTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		71B9ABFCE2EF044B302204D6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE6BE6E99F2750CA0753B70C /* ChannelDerivationTests.swift in Sources */,
+				63C77B37A8387115288DD259 /* ChatViewModelTests.swift in Sources */,
+				40FA09D70B29F7F997EC587D /* CryptoTests.swift in Sources */,
+				CC88E2F7706732E989994F9A /* OnboardingViewModelTests.swift in Sources */,
+				590EF3B8FD6C2D3C653D2330 /* PacketFramingTests.swift in Sources */,
+				B46621C342C49C5F485AC87B /* PeopleViewModelTests.swift in Sources */,
+				0F81D3A7B34A1A29FF312BE3 /* RepositoryTests.swift in Sources */,
+				405C3F11D8686916E1FB3575 /* SettingsViewModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A6C1B06898CFF6CF066B21AD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7D1332A7B505B58EF54A5A22 /* AppEnvironment.swift in Sources */,
+				636C66171D600752B50F96C7 /* AppRootView.swift in Sources */,
+				F75674F2583E350313849741 /* AppStore.swift in Sources */,
+				1AF6109B76D984B016B082C1 /* BLEPacketFramer.swift in Sources */,
+				210E9BDD95986E169126F0CE /* BLEUUIDFactory.swift in Sources */,
+				539A6F39A144CEC6BD92A436 /* ChannelCode.swift in Sources */,
+				C84315FF6B2CD75E3663A71B /* ChannelKeyDerivation.swift in Sources */,
+				C1A9B9DE6F4645ACF6E8E03B /* ChannelSettingsView.swift in Sources */,
+				BC55880EFD41311CC30CCDCC /* ChatHeaderView.swift in Sources */,
+				14B340ADF46E64C311CF402F /* ChatMessage.swift in Sources */,
+				3E7463B02A7DC533CA132507 /* ChatView.swift in Sources */,
+				F57FE4E20F6B6AC3FECEE403 /* ChatViewModel.swift in Sources */,
+				DF2C276C3FD8E91DA1AACF4E /* ConnectionScheduler.swift in Sources */,
+				B2055732E76AC2C209DBCCDA /* CryptoErrors.swift in Sources */,
+				BD5949164ACEE779C7DCAE99 /* DebugDiagnosticsView.swift in Sources */,
+				7082781A35BCA91D806E2FCD /* DisplayNameSetupView.swift in Sources */,
+				C1868B391491E59A3F003715 /* EmptyStateView.swift in Sources */,
+				A91D46D83807EA63B21E0FF9 /* Envelopes.swift in Sources */,
+				EC11D839D97476A69AE73DF2 /* FrequencyHeaderView.swift in Sources */,
+				27A3D53152936F85F6D0EE14 /* FrequencyJoinView.swift in Sources */,
+				6000F81E04C86A1E53E6FB19 /* FrequencyPill.swift in Sources */,
+				0617B4E95EA7C8D1E08674FD /* GlassCard.swift in Sources */,
+				0B26286CD16ADE20CDEB94EF /* Identifiers.swift in Sources */,
+				10DBE39E99C0F0FC206DF5FC /* IdentityFingerprintView.swift in Sources */,
+				8B2CF68A08B455FCB013765D /* IdentityStore.swift in Sources */,
+				E01E7D1B1247A917D74A3C5D /* JSONRepositories.swift in Sources */,
+				BABD51CC30A92C15D13395A3 /* LWAnimations.swift in Sources */,
+				6924C262A702DFB0621F56E1 /* LWMaterials.swift in Sources */,
+				19E9ACD55A9CFAE307FBFD52 /* LWSymbols.swift in Sources */,
+				FF1787024F29462DA9B4DCF8 /* LWTheme.swift in Sources */,
+				2251564AF688F5A4C07AFE92 /* LocalIdentity.swift in Sources */,
+				9D82AB7A97CDCA672A9F2317 /* LocalNotificationService.swift in Sources */,
+				634DAB276142E99554B72CA0 /* LocalStore.swift in Sources */,
+				CCBF185C58949FB9BAEC6704 /* LocalWaveApp.swift in Sources */,
+				5462AE259DD57B93CE4C2EFF /* LocalWaveBluetoothTransport.swift in Sources */,
+				D6DBB60776E9307D1F46AA63 /* LocalWaveEngine.swift in Sources */,
+				076EDB06432B2C9611C8BDFA /* LocalWaveError.swift in Sources */,
+				7913D441420E9123BF943D3B /* LocalWaveProtocols.swift in Sources */,
+				65B839D50A44E184C65DDAF4 /* MessageBubble.swift in Sources */,
+				FED78F5AA72D9818EA3DC374 /* MessageComposerView.swift in Sources */,
+				CAE55756C738D0AC989B9D0D /* MessageListView.swift in Sources */,
+				697D0332B035B78CFAE57FC4 /* MessageRepository.swift in Sources */,
+				8313920FF9F8BA46320CF964 /* MessageStatusView.swift in Sources */,
+				ABB5506E7ED4F1FB97B77239 /* MockLocalWaveEngine.swift in Sources */,
+				196CD14B672A1BB5492D390C /* OnboardingView.swift in Sources */,
+				65478F4DF840979C95E59DF5 /* OnboardingViewModel.swift in Sources */,
+				B7D717D2352CDA17FFD22FFD /* PeerAvatar.swift in Sources */,
+				84259615C6104C366403660B /* PeerDetailSheet.swift in Sources */,
+				E8C447B2DDD9DA98E3DE97D8 /* PeerDiscoveryEngine.swift in Sources */,
+				D39F815EF05458D00F037C00 /* PeerProfile.swift in Sources */,
+				B710F921175527CF029B0F59 /* PeerRepository.swift in Sources */,
+				D204A8ECF936285ECB620C74 /* PeerRowView.swift in Sources */,
+				2117D33629CA669CFF5D8F36 /* PeopleView.swift in Sources */,
+				DAA86EF0F99F3FF45AE6B0A4 /* PeopleViewModel.swift in Sources */,
+				C2723886A2D4C1E8A166754A /* PermissionBanner.swift in Sources */,
+				728971ED28434C8DD8007CBD /* PermissionEducationView.swift in Sources */,
+				F55D243AC9CB1310F31FCE65 /* PresenceAdvertiser.swift in Sources */,
+				341B21F6D62A84CBE554E92A /* PresencePayload.swift in Sources */,
+				EEC7F7DCB6FC9FEC14510596 /* PreviewData.swift in Sources */,
+				6F73BEC9FF87D6D5D7084547 /* PrivacyExplanationView.swift in Sources */,
+				ED23988696E0B357649C970C /* SectionHeader.swift in Sources */,
+				65D72B8267E2D2FE31302B95 /* SecureEnvelope.swift in Sources */,
+				4B3EBDBA7B5CF953765021FF /* SessionCrypto.swift in Sources */,
+				2933A3140CC9327756C9471D /* SettingsView.swift in Sources */,
+				AE3CB33A58DEAC1AA992A8A6 /* SettingsViewModel.swift in Sources */,
+				1A28156BDC38C76F0356F33F /* SignalStrengthView.swift in Sources */,
+				26546A74896CA36DCDBBB508 /* SwiftDataStore.swift in Sources */,
+				E5E09961B65BA560D24C3033 /* TransportPacket.swift in Sources */,
+				F1892B28BFE414C7AFCF8BD8 /* TransportState.swift in Sources */,
+				0E57C0AE297FD18A1935A387 /* WakeButton.swift in Sources */,
+				E09AB8C8BA407AA12C2A9B3D /* WelcomeView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B4C470A58570111914817FB7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 375BC51F5594B63CA8A7628F /* LocalWave */;
+			targetProxy = F8BF416117BC77AA63195EBE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1543606B00B1166A1487E809 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		1C80601261CB4BEF5497DE27 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LocalWave/Resources/LocalWave.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LocalWave;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "LocalWave uses Bluetooth to discover nearby teammates on the same Frequency Code and exchange encrypted messages without internet.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIBackgroundModes = (
+					"bluetooth-central",
+					"bluetooth-peripheral",
+				);
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.localwave.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		49CA06E222DE45FB65C61434 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.localwave.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LocalWave.app/LocalWave";
+			};
+			name = Debug;
+		};
+		675C260AE2138C098BCD6F3E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LocalWave/Resources/LocalWave.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LocalWave;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "LocalWave uses Bluetooth to discover nearby teammates on the same Frequency Code and exchange encrypted messages without internet.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIBackgroundModes = (
+					"bluetooth-central",
+					"bluetooth-peripheral",
+				);
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.localwave.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		718E930AC511964123F27B7E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		8771C1CF59EA079EC95EB4E9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.localwave.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LocalWave.app/LocalWave";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1FAAD7BAE06CC045BEAA9A46 /* Build configuration list for PBXProject "LocalWave" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				718E930AC511964123F27B7E /* Debug */,
+				1543606B00B1166A1487E809 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DA48C729AD1714BB2849E13B /* Build configuration list for PBXNativeTarget "LocalWave" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				675C260AE2138C098BCD6F3E /* Debug */,
+				1C80601261CB4BEF5497DE27 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E3CAA40DAD57D4D5FF17C554 /* Build configuration list for PBXNativeTarget "LocalWaveTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				49CA06E222DE45FB65C61434 /* Debug */,
+				8771C1CF59EA079EC95EB4E9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 619ECE158AA897E2034CA094 /* Project object */;
+}

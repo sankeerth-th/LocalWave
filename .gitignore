@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+
+# Xcode user/build state
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+**/xcuserdata/
+
+# Android Studio / Gradle generated state
+.gradle/
+**/.gradle/
+.kotlin/
+**/.kotlin/
+build/
+**/build/
+local.properties
+**/local.properties
+*.iml
+.idea/
+**/.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Java/Kotlin build artifacts
+*.class
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# Local secrets / signing material
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+google-services.json
