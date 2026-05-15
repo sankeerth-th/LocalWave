@@ -26,11 +26,10 @@ import com.localwave.design.components.GlassCard
 @Composable
 fun PrivacyExplanationScreen(onBack: () -> Unit) {
     DetailScaffold("Privacy", onBack) {
-        Text("LocalWave does not use accounts, phone numbers, email, servers, cloud sync, analytics, or tracking SDKs.")
-        Text("Messages are sent locally over Bluetooth to nearby devices using the same Frequency Code.")
-        Text("The Frequency Code is a logical Bluetooth channel code, not a real radio frequency tuner.")
-        Text("Wake is best-effort and depends on Bluetooth reachability, notification permission, background behavior, and device battery settings.")
-        Text("LocalWave is not an emergency or public-safety communication system.")
+        Text("No account, phone number, email, server, cloud sync, analytics, or tracking SDKs.")
+        Text("Messages are sent locally over Bluetooth to nearby devices on the same Frequency Code.")
+        Text("The Frequency Code is a logical Bluetooth channel code, not a real radio tuner.")
+        Text("Wake is best-effort and depends on Bluetooth reachability, notification permission, and system background rules.")
     }
 }
 
@@ -51,13 +50,16 @@ fun DiagnosticsScreen(environment: AppEnvironment, onBack: () -> Unit) {
     val peers by environment.engine.observePeers().collectAsStateWithLifecycle(initialValue = emptyList())
     DetailScaffold("Diagnostics", onBack) {
         Text("Engine mode: ${environment.mode.name}")
+        if (environment.mode.name == "MOCK") {
+            Text("Mock mode uses local sample peers and messages. It does not prove Android BLE discovery or cross-device delivery.")
+        }
         Text("Transport: ${if (transport.isRunning) "Running" else "Stopped"}")
         Text("Scanning: ${if (transport.isScanning) "On" else "Off"}")
         Text("Advertising: ${if (transport.isAdvertising) "On" else "Off"}")
         Text("Nearby peer count: ${peers.size}")
         Text("Bluetooth permission: ${transport.permission.name.lowercase()}")
         Text("Last redacted BLE error: ${transport.lastError?.take(24) ?: "None"}")
-        Text("Diagnostics do not show plaintext messages, private keys, shared secrets, or full private channel passwords.")
+        Text("Diagnostics hide plaintext messages, private keys, shared secrets, packet bodies, and full private channel passwords.")
     }
 }
 

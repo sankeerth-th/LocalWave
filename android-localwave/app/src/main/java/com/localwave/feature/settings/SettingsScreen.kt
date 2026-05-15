@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -33,39 +33,30 @@ fun SettingsScreen(
     openPermissions: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LazyColumn(Modifier.fillMaxSize().padding(LWSpacing.screen), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(LWSpacing.screen), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() }) }
         item {
             GlassCard {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SectionHeader("Profile")
                     OutlinedTextField(state.displayName, viewModel::updateDisplayName, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = viewModel::saveDisplayName) { Text("Save Display Name") }
-                }
-            }
-        }
-        item {
-            GlassCard {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionHeader("Frequency", "Current Frequency Code. This is a logical Bluetooth channel, not a radio tuner.")
-                    OutlinedTextField(state.channelText, viewModel::updateChannel, label = { Text("Frequency Code") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = viewModel::switchChannel) { Text("Change Frequency Code") }
+                    OutlinedButton(onClick = viewModel::saveDisplayName, modifier = Modifier.fillMaxWidth()) { Text("Save name") }
                 }
             }
         }
         item {
             GlassCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionHeader("Privacy")
-                    Text("No account. No internet. No server. Bluetooth only.")
-                    Text("E2E encryption is designed by the core engine.")
-                    Button(onClick = openPrivacy) { Text("Open Privacy Explanation") }
+                    SectionHeader("Channel")
+                    OutlinedTextField(state.channelText, viewModel::updateChannel, label = { Text("Frequency Code") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedButton(onClick = viewModel::switchChannel, modifier = Modifier.fillMaxWidth()) { Text("Change code") }
                 }
             }
         }
-        item { SettingsButton("Identity", "My identity fingerprint", openIdentity) }
-        item { SettingsButton("Permissions", "Bluetooth, Notifications, Active mode/background", openPermissions) }
-        item { SettingsButton("Diagnostics", "Mode: $engineMode. Nearby peers: ${state.nearbyPeerCount}.", openDiagnostics) }
+        item { SettingsButton("Identity", "Fingerprint", openIdentity) }
+        item { SettingsButton("Permissions", "Bluetooth and notifications", openPermissions) }
+        item { SettingsButton("Privacy", "How LocalWave works", openPrivacy) }
+        item { SettingsButton("Diagnostics", "Mode: $engineMode, peers: ${state.nearbyPeerCount}", openDiagnostics) }
         state.error?.let { item { PermissionBanner(it) } }
     }
 }
@@ -73,10 +64,10 @@ fun SettingsScreen(
 @Composable
 private fun SettingsButton(title: String, body: String, onClick: () -> Unit) {
     GlassCard {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
             Text(body, style = MaterialTheme.typography.bodySmall)
-            Button(onClick = onClick) { Text("Open") }
+            OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text("Open") }
         }
     }
 }

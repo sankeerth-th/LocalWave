@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -68,13 +70,15 @@ private fun LocalWaveBottomBar(navController: NavHostController) {
             selected = route == "people",
             onClick = { navController.navigate("people") { launchSingleTop = true } },
             icon = { Icon(com.localwave.design.LWIcons.People, contentDescription = null) },
-            label = { Text("People") }
+            label = { Text("People") },
+            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
         )
         NavigationBarItem(
             selected = route == "settings",
             onClick = { navController.navigate("settings") { launchSingleTop = true } },
             icon = { Icon(com.localwave.design.LWIcons.Settings, contentDescription = null) },
-            label = { Text("Settings") }
+            label = { Text("Settings") },
+            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
         )
     }
 }

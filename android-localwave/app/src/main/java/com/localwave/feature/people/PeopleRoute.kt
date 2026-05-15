@@ -11,5 +11,5 @@ import com.localwave.core.model.PeerId
 fun PeopleRoute(environment: AppEnvironment, persistedState: PersistedAppState, openChat: (PeerId) -> Unit, openSettings: () -> Unit) {
     val viewModel = remember { PeopleViewModel(environment.engine) }
     LaunchedEffect(Unit) { viewModel.start() }
-    PeopleScreen(viewModel, persistedState.channelText.ifBlank { "DOCK-A" }, openChat, openSettings)
+    PeopleScreen(viewModel, persistedState.channelText.ifBlank { "DOCK-A" }, environment.mode.name, openChat, openSettings)
 }

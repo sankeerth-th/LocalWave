@@ -10,5 +10,5 @@ import com.localwave.core.model.PeerId
 fun ChatRoute(environment: AppEnvironment, peerId: String, onBack: () -> Unit) {
     val viewModel = remember(peerId) { ChatViewModel(environment.engine, PeerId(peerId)) }
     LaunchedEffect(peerId) { viewModel.start() }
-    ChatScreen(viewModel, onBack)
+    ChatScreen(viewModel, environment.mode.name, onBack)
 }

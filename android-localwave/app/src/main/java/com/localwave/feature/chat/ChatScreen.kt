@@ -25,7 +25,7 @@ import com.localwave.design.components.SignalStrengthView
 import com.localwave.design.components.WakeButton
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
+fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         ChatHeader(
@@ -54,7 +54,6 @@ fun ChatHeader(name: String, status: String, rssi: Int?, wakeState: com.localwav
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Wake sends a local Bluetooth ping when reachable.", style = MaterialTheme.typography.bodySmall)
         }
         rssi?.let { SignalStrengthView(it) }
         WakeButton(wakeState, onWake)

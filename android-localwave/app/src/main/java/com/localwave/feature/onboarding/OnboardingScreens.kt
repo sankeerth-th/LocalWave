@@ -74,9 +74,9 @@ fun OnboardingScreen(
 @Composable
 fun WelcomeScreen() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Private local chat.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("No internet. No account. Nearby only.")
-        GlassCard { Text("LocalWave uses Bluetooth with people nearby on the same Frequency Code. It does not use a backend relay.") }
+        Text("Start LocalWave.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Join teammates on the same Frequency Code.")
+        GlassCard { Text("Set a name, enter the team code, then keep both phones nearby.") }
     }
 }
 
@@ -100,7 +100,7 @@ fun FrequencyCodeScreen(state: OnboardingState, onChange: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth()
         )
         Text("Examples: DOCK-A, WAREHOUSE-7, 462.625")
-        Text("This is a private local Bluetooth channel code. It is not a real radio tuner.", style = MaterialTheme.typography.bodySmall)
+        Text("Use the exact same code as your team.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -109,7 +109,7 @@ fun BluetoothEducationScreen(onRequestBluetooth: () -> Unit) {
     GlassCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Bluetooth access", fontWeight = FontWeight.Bold)
-            Text("Bluetooth lets LocalWave find nearby teammates using the same Frequency Code. No internet or account is used.")
+            Text("Needed to find nearby people.")
             Button(onClick = onRequestBluetooth) { Text("Check Bluetooth") }
         }
     }
@@ -121,14 +121,14 @@ fun NotificationEducationScreen(onRequestNotifications: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Wake alerts", fontWeight = FontWeight.Bold)
             Text("Notifications let Wake alerts show when someone nearby is trying to reach you.")
-            Text("Wake works best when both phones are nearby, Bluetooth is on, and the app has permission.", style = MaterialTheme.typography.bodySmall)
+            Text("Wake depends on Bluetooth reachability and system background rules.", style = MaterialTheme.typography.bodySmall)
             Button(onClick = onRequestNotifications) { Text("Check Notifications") }
         }
     }
 }
 
 private fun stepSubtitle(step: OnboardingStep): String = when (step) {
-    OnboardingStep.WELCOME -> "No internet. No signup. Nearby only."
+    OnboardingStep.WELCOME -> "Nearby teammates on your team code."
     OnboardingStep.DISPLAY_NAME -> "Choose the name teammates will see nearby."
     OnboardingStep.FREQUENCY -> "Join a private local Bluetooth channel."
     OnboardingStep.BLUETOOTH -> "Enable nearby discovery."

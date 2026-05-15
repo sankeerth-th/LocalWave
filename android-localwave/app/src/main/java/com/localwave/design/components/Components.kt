@@ -1,5 +1,6 @@
 package com.localwave.design.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -46,7 +46,10 @@ fun GlassCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f))
     ) {
-        Box(Modifier.padding(16.dp)) { content() }
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) { content() }
     }
 }
 
@@ -117,8 +120,8 @@ fun WakeButton(state: WakeButtonState, onWake: () -> Unit, modifier: Modifier = 
 @Composable
 fun PermissionBanner(text: String, modifier: Modifier = Modifier) {
     Surface(
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         shape = RoundedCornerShape(8.dp),
         modifier = modifier.fillMaxWidth().semantics { contentDescription = "Permission notice. $text" }
     ) {
@@ -162,22 +165,27 @@ fun MessageBubble(message: ChatMessage) {
 
 @Composable
 fun PeerSummary(peer: PeerProfile, onOpen: () -> Unit, wakeState: WakeButtonState, onWake: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .semantics { contentDescription = "Open chat with ${peer.displayName}" },
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             PeerAvatar(peer.displayName)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(peer.displayName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(peer.state.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Last seen ${lastSeenText(peer.lastSeenEpochMillis)}", style = MaterialTheme.typography.labelSmall)
+                Text(lastSeenText(peer.lastSeenEpochMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             SignalStrengthView(peer.rssi)
             Spacer(Modifier.width(8.dp))
             WakeButton(wakeState, onWake)
-        }
-        Spacer(Modifier.height(10.dp))
-        Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Open chat with ${peer.displayName}" }) {
-            Text("Open Chat")
         }
     }
 }

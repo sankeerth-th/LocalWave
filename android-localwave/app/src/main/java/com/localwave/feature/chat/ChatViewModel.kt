@@ -23,8 +23,8 @@ data class ChatUiState(
     val wakeState: WakeButtonState = WakeButtonState.IDLE,
     val error: String? = null
 ) {
-    val canSend: Boolean get() = draft.isNotBlank() && draft.encodeToByteArray().size <= 4096
     val isPeerReachable: Boolean get() = peer?.state in setOf(PresenceState.AVAILABLE, PresenceState.CONNECTING)
+    val canSend: Boolean get() = draft.isNotBlank() && draft.encodeToByteArray().size <= 4096 && isPeerReachable
 }
 
 class ChatViewModel(private val engine: LocalWaveEngine, private val peerId: PeerId) {
@@ -52,6 +52,10 @@ class ChatViewModel(private val engine: LocalWaveEngine, private val peerId: Pee
     fun sendDraft() {
         val text = state.value.draft.trim()
         if (text.isEmpty()) return
+        if (!state.value.isPeerReachable) {
+            _state.update { it.copy(error = "That teammate is not currently reachable.") }
+            return
+        }
         if (text.encodeToByteArray().size > 4096) {
             _state.update { it.copy(error = "Messages are limited to 4 KB in this version.") }
             return

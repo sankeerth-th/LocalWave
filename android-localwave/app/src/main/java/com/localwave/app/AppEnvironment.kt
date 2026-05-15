@@ -9,23 +9,50 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.room.Room
+import com.localwave.core.bluetooth.AndroidBleTransport
+import com.localwave.core.crypto.AndroidKeystoreIdentityKeyStore
+import com.localwave.core.crypto.SessionCrypto
+import com.localwave.core.diagnostics.RedactedLogger
 import com.localwave.core.model.TransportState
+import com.localwave.core.notifications.WakeNotificationManager
+import com.localwave.core.persistence.LocalWaveDatabase
+import com.localwave.core.persistence.RoomMessageRepository
+import com.localwave.core.persistence.RoomPeerRepository
 import com.localwave.core.protocol.LocalWaveEngine
-import com.localwave.mock.MockLocalWaveEngine
+import com.localwave.core.protocol.RealLocalWaveEngine
 
-enum class EngineMode { MOCK, REAL_MISSING }
+enum class EngineMode { REAL, MOCK }
 
 data class AppEnvironment(
     val engine: LocalWaveEngine,
     val mode: EngineMode,
-    val permissionController: LocalWavePermissionController
+    val permissionController: LocalWavePermissionController,
+    val database: LocalWaveDatabase? = null
 ) {
     companion object {
-        fun create(context: Context): AppEnvironment = AppEnvironment(
-            engine = MockLocalWaveEngine(),
-            mode = EngineMode.MOCK,
-            permissionController = AndroidPermissionController(context.applicationContext)
-        )
+        fun create(context: Context): AppEnvironment {
+            val appContext = context.applicationContext
+            val database = Room.databaseBuilder(appContext, LocalWaveDatabase::class.java, "localwave.db").build()
+            val identityStore = AndroidKeystoreIdentityKeyStore(appContext)
+            val crypto = SessionCrypto(identityStore)
+            val logger = RedactedLogger()
+            val transport = AndroidBleTransport(appContext, logger)
+            val engine = RealLocalWaveEngine(
+                identityStore = identityStore,
+                crypto = crypto,
+                peerRepository = RoomPeerRepository(database.peerDao()),
+                messageRepository = RoomMessageRepository(database.messageDao()),
+                transport = transport,
+                wakeNotificationManager = WakeNotificationManager(appContext)
+            )
+            return AppEnvironment(
+                engine = engine,
+                mode = EngineMode.REAL,
+                permissionController = AndroidPermissionController(appContext),
+                database = database
+            )
+        }
     }
 }
 

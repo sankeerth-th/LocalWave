@@ -133,7 +133,15 @@ class AndroidBleTransport(
         scannerClient = BleScannerClient(context, profile, logger) { result ->
             gattClient?.connect(result)
         }.also { it.start() }
-        publishState(TransportState(isRunning = true, isScanning = true, isAdvertising = true, permission = permission))
+        publishState(
+            TransportState(
+                isRunning = true,
+                isScanning = true,
+                isAdvertising = true,
+                permission = TransportPermissionState.ALLOWED,
+                notificationPermission = permission != TransportPermissionState.MISSING_NOTIFICATION_PERMISSION
+            )
+        )
     }
 
     override suspend fun stop() {
@@ -216,7 +224,6 @@ class BleAdvertiserServer(
             .build()
         val data = AdvertiseData.Builder()
             .addServiceUuid(ParcelUuid(profile.serviceUuid))
-            .addServiceData(ParcelUuid(profile.serviceUuid), presenceBytes())
             .setIncludeDeviceName(false)
             .build()
         advertiser?.startAdvertising(settings, data, advertiseCallback)
