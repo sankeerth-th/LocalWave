@@ -26,7 +26,7 @@ final class PeopleViewModelTests: XCTestCase {
             viewModel.peers.map(\.id) == ["peer-relay"]
         }
         XCTAssertEqual(viewModel.transportState.permission, .allowed)
-        XCTAssertEqual(viewModel.scanningStatusText, "Scanning nearby...")
+        XCTAssertEqual(viewModel.scanningStatusText, "Looking nearby")
     }
 
     func testPermissionNeededStatusAndWakeState() async throws {
@@ -40,7 +40,7 @@ final class PeopleViewModelTests: XCTestCase {
         viewModel.start()
         try await Task.sleep(nanoseconds: 150_000_000)
 
-        XCTAssertEqual(viewModel.scanningStatusText, "Bluetooth permission needed")
+        XCTAssertEqual(viewModel.scanningStatusText, "Bluetooth needs attention")
         XCTAssertEqual(viewModel.wakeState(for: PreviewData.peers[0]), .permissionNeeded)
     }
 

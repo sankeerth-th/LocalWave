@@ -20,9 +20,10 @@ struct AppRootView: View {
 private struct MainTabView: View {
     @ObservedObject var store: AppStore
     let channel: ChannelCode
+    @State private var selectedTab: MainTab = .people
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
                 PeopleView(
                     viewModel: PeopleViewModel(
@@ -33,9 +34,11 @@ private struct MainTabView: View {
                     store: store
                 )
             }
+            .id(channel.normalized)
             .tabItem {
-                Label("Frequency", systemImage: LWSymbols.frequency)
+                Label("People", systemImage: LWSymbols.people)
             }
+            .tag(MainTab.people)
 
             NavigationStack {
                 SettingsView(viewModel: SettingsViewModel(store: store))
@@ -43,8 +46,14 @@ private struct MainTabView: View {
             .tabItem {
                 Label("Settings", systemImage: LWSymbols.settings)
             }
+            .tag(MainTab.settings)
         }
     }
+}
+
+private enum MainTab: Hashable {
+    case people
+    case settings
 }
 
 #Preview("Onboarding") {

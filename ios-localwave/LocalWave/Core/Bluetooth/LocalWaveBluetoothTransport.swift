@@ -31,8 +31,12 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
     private var profile: BLECBUUIDProfile?
     private var mutablePacketCharacteristic: CBMutableCharacteristic?
     private var continuations: [UUID: AsyncStream<BluetoothTransportEvent>.Continuation] = [:]
+    private var discoveredPeripheralIDs: Set<UUID> = []
+    private var connectingPeripherals: [UUID: CBPeripheral] = [:]
+    private var discoveredRSSI: [UUID: Int] = [:]
     private var discoveredPeripherals: [PeerID: CBPeripheral] = [:]
     private var packetCharacteristics: [PeerID: CBCharacteristic] = [:]
+    private var pendingPacketCharacteristics: [UUID: CBCharacteristic] = [:]
     private var pendingWrites: [PeerID: [Data]] = [:]
 
     public override init() {
@@ -68,8 +72,12 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
                 discoveredPeripherals.values.forEach { self.centralManager?.cancelPeripheralConnection($0) }
                 self.profile = profile
             }
+            discoveredPeripheralIDs.removeAll()
+            connectingPeripherals.removeAll()
+            discoveredRSSI.removeAll()
             discoveredPeripherals.removeAll()
             packetCharacteristics.removeAll()
+            pendingPacketCharacteristics.removeAll()
             pendingWrites.removeAll()
             updateState(TransportState())
         }
@@ -162,13 +170,10 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
 
     private func advertiseService() {
         guard let peripheralManager, let profile else { return }
-        var advertisement: [String: Any] = [
+        let advertisement: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: [profile.serviceUUID],
             CBAdvertisementDataLocalNameKey: "LocalWave"
         ]
-        if let presence = presenceData() {
-            advertisement[CBAdvertisementDataServiceDataKey] = [profile.serviceUUID: presence]
-        }
         peripheralManager.startAdvertising(advertisement)
         updateState(TransportState(isRunning: true, isScanning: centralManager?.isScanning == true, isAdvertising: true, permission: .allowed))
     }
@@ -184,26 +189,6 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
         return try? JSONEncoder().encode(presence)
     }
 
-    private func peer(from advertisementData: [String: Any], rssi RSSI: NSNumber) -> PeerProfile? {
-        guard let profile,
-              let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
-              let data = serviceData[profile.serviceUUID],
-              let presence = try? JSONDecoder().decode(PresenceAdvertisement.self, from: data) else {
-            return nil
-        }
-        guard presence.peerId != identity?.peerId else {
-            return nil
-        }
-        return PeerProfile(
-            id: presence.peerId,
-            displayName: presence.displayName,
-            fingerprint: presence.fingerprint,
-            rssi: RSSI.intValue,
-            lastSeen: Date(),
-            state: .available,
-            publicKeyData: presence.agreementPublicKey
-        )
-    }
 }
 
 extension LocalWaveBluetoothTransport: CBCentralManagerDelegate {
@@ -226,18 +211,58 @@ extension LocalWaveBluetoothTransport: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
-        guard let peer = peer(from: advertisementData, rssi: RSSI) else { return }
-        discoveredPeripherals[peer.id] = peripheral
+        guard let profile else { return }
+        guard !discoveredPeripheralIDs.contains(peripheral.identifier) else { return }
+        discoveredPeripheralIDs.insert(peripheral.identifier)
+        connectingPeripherals[peripheral.identifier] = peripheral
+        discoveredRSSI[peripheral.identifier] = RSSI.intValue
         peripheral.delegate = self
-        emit(.peerDiscovered(peer))
         if peripheral.state == .disconnected {
             central.connect(peripheral)
+        } else if peripheral.state == .connected {
+            peripheral.discoverServices([profile.serviceUUID])
         }
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard let profile else { return }
         peripheral.discoverServices([profile.serviceUUID])
+    }
+
+    public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        discoveredPeripheralIDs.remove(peripheral.identifier)
+        connectingPeripherals[peripheral.identifier] = nil
+        pendingPacketCharacteristics[peripheral.identifier] = nil
+        updateState(TransportState(
+            isRunning: true,
+            isScanning: central.isScanning,
+            isAdvertising: peripheralManager?.isAdvertising == true,
+            permission: .allowed,
+            lastError: error?.localizedDescription ?? "Unable to connect to a nearby LocalWave device."
+        ))
+    }
+
+    public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        discoveredPeripheralIDs.remove(peripheral.identifier)
+        connectingPeripherals[peripheral.identifier] = nil
+        discoveredRSSI[peripheral.identifier] = nil
+        pendingPacketCharacteristics[peripheral.identifier] = nil
+        let disconnectedPeerIds = discoveredPeripherals
+            .filter { $0.value.identifier == peripheral.identifier }
+            .map(\.key)
+        disconnectedPeerIds.forEach { peerId in
+            discoveredPeripherals[peerId] = nil
+            packetCharacteristics[peerId] = nil
+        }
+        if let error {
+            updateState(TransportState(
+                isRunning: true,
+                isScanning: central.isScanning,
+                isAdvertising: peripheralManager?.isAdvertising == true,
+                permission: .allowed,
+                lastError: error.localizedDescription
+            ))
+        }
     }
 }
 
@@ -253,9 +278,11 @@ extension LocalWaveBluetoothTransport: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard error == nil, let profile else { return }
         service.characteristics?.forEach { characteristic in
-            if characteristic.uuid == profile.packetCharacteristicUUID,
-               let peerId = discoveredPeripherals.first(where: { $0.value === peripheral })?.key {
-                packetCharacteristics[peerId] = characteristic
+            if characteristic.uuid == profile.packetCharacteristicUUID {
+                pendingPacketCharacteristics[peripheral.identifier] = characteristic
+                if let peerId = discoveredPeripherals.first(where: { $0.value.identifier == peripheral.identifier })?.key {
+                    packetCharacteristics[peerId] = characteristic
+                }
             }
             if characteristic.uuid == profile.presenceCharacteristicUUID {
                 peripheral.readValue(for: characteristic)
@@ -271,11 +298,14 @@ extension LocalWaveBluetoothTransport: CBPeripheralDelegate {
             return
         }
         discoveredPeripherals[presence.peerId] = peripheral
+        if let packetCharacteristic = pendingPacketCharacteristics[peripheral.identifier] {
+            packetCharacteristics[presence.peerId] = packetCharacteristic
+        }
         emit(.peerDiscovered(PeerProfile(
             id: presence.peerId,
             displayName: presence.displayName,
             fingerprint: presence.fingerprint,
-            rssi: 0,
+            rssi: discoveredRSSI[peripheral.identifier] ?? 0,
             lastSeen: Date(),
             state: .available,
             publicKeyData: presence.agreementPublicKey

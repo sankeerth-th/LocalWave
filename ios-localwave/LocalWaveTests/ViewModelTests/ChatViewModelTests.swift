@@ -37,6 +37,48 @@ final class ChatViewModelTests: XCTestCase {
         }
     }
 
+    func testPeerStreamUpdatesSendCapability() async throws {
+        var peer = PreviewData.peers[0]
+        peer.state = .available
+        let engine = MockLocalWaveEngine(peers: [peer], sendDelayNanoseconds: 0)
+        let environment = AppEnvironment(engine: engine, mode: .mock)
+        let viewModel = ChatViewModel(environment: environment, peer: peer)
+        viewModel.start()
+        viewModel.draft = "State check"
+
+        await waitUntil {
+            viewModel.canSend
+        }
+
+        peer.state = .recentlySeen
+        engine.replacePeers([peer])
+
+        await waitUntil {
+            !viewModel.canSend && viewModel.peer.state == .recentlySeen
+        }
+    }
+
+    func testPeerUnavailableErrorMarksChatUnreachable() async throws {
+        var peer = PreviewData.peers[0]
+        let engine = MockLocalWaveEngine(peers: [peer], sendDelayNanoseconds: 0)
+        let environment = AppEnvironment(engine: engine, mode: .mock)
+        let viewModel = ChatViewModel(environment: environment, peer: peer)
+        viewModel.start()
+        viewModel.draft = "Are you there?"
+
+        await waitUntil {
+            viewModel.canSend
+        }
+
+        peer.state = .recentlySeen
+        engine.replacePeers([peer])
+        await viewModel.sendDraft()
+
+        await waitUntil {
+            viewModel.peer.state == .recentlySeen
+        }
+    }
+
     func testRetryFailedMessageSendsAgain() async throws {
         let engine = MockLocalWaveEngine()
         let environment = AppEnvironment(engine: engine, mode: .mock)

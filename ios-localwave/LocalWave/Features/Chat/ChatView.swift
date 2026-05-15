@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
+    @Environment(\.dismiss) private var dismiss
 
     init(viewModel: ChatViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -32,6 +33,17 @@ struct ChatView: View {
         }
         .background(LWTheme.background)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .accessibilityLabel("Back")
+            }
+        }
         .task { viewModel.start() }
         .onDisappear { viewModel.stop() }
         .alert("LocalWave", isPresented: Binding(get: { viewModel.errorMessage != nil }, set: { _ in })) {
@@ -47,4 +59,3 @@ struct ChatView: View {
         ChatView(viewModel: ChatViewModel(environment: .mock, peer: PreviewData.peers[0]))
     }
 }
-

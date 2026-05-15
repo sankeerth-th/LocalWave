@@ -4,6 +4,7 @@ struct PeopleView: View {
     @StateObject private var viewModel: PeopleViewModel
     @ObservedObject var store: AppStore
     @State private var detailPeer: PeerProfile?
+    @State private var showingSettings = false
 
     init(viewModel: PeopleViewModel, store: AppStore) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -18,19 +19,20 @@ struct PeopleView: View {
                     FrequencyHeaderView(
                         channel: viewModel.channel,
                         status: viewModel.scanningStatusText,
-                        isScanning: viewModel.transportState.isScanning
+                        isScanning: viewModel.transportState.isScanning,
+                        mode: viewModel.environment.mode
                     )
 
                     if viewModel.needsBluetoothBanner {
-                        PermissionBanner(text: "Bluetooth is needed to find nearby LocalWave users. No internet or account is used.")
+                        PermissionBanner(text: "Bluetooth is off or permission is missing. Turn it on to find nearby people.")
                     }
 
-                    SectionHeader(title: "Nearby People", subtitle: "People using LocalWave with the same Frequency Code.")
+                    SectionHeader(title: "Nearby", subtitle: nil)
 
                     if viewModel.peers.isEmpty {
                         EmptyStateView(
-                            title: "No one on this frequency yet.",
-                            message: "Ask teammates to install LocalWave and enter the same Frequency Code."
+                            title: "No one nearby yet.",
+                            message: "Keep LocalWave open on both phones with the same Frequency Code."
                         )
                     } else {
                         LazyVStack(spacing: 10) {
@@ -54,6 +56,16 @@ struct PeopleView: View {
             }
         }
         .navigationTitle("LocalWave")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingSettings = true
+                } label: {
+                    Image(systemName: LWSymbols.settings)
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
         .navigationDestination(for: PeerProfile.self) { peer in
             ChatView(viewModel: ChatViewModel(environment: store.environment, peer: peer))
         }
@@ -65,6 +77,18 @@ struct PeopleView: View {
                     Task { await viewModel.sendWake(to: peer) }
                 }
             )
+        }
+        .sheet(isPresented: $showingSettings) {
+            NavigationStack {
+                SettingsView(viewModel: SettingsViewModel(store: store))
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") {
+                                showingSettings = false
+                            }
+                        }
+                    }
+            }
         }
         .task { viewModel.start() }
         .onDisappear { viewModel.stop() }
@@ -80,4 +104,3 @@ struct PeopleView: View {
     }
     .preferredColorScheme(.dark)
 }
-

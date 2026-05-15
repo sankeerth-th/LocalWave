@@ -14,7 +14,7 @@ enum PermissionEducationKind {
     var message: String {
         switch self {
         case .bluetooth:
-            return "Bluetooth permission is needed to discover nearby LocalWave users and exchange local messages. No internet or account is used."
+            return "Bluetooth permission is needed to discover nearby LocalWave users and exchange local messages."
         case .notifications:
             return "Notifications are optional, but needed for Wake alerts when iOS allows them. Wake is not guaranteed and depends on reachability and system rules."
         }
@@ -63,4 +63,3 @@ struct PermissionEducationView: View {
         .padding(LWTheme.screenPadding)
     }
 }
-

@@ -28,19 +28,19 @@ public final class PeopleViewModel: ObservableObject {
     public var scanningStatusText: String {
         switch transportState.permission {
         case .denied, .unavailable:
-            return "Bluetooth permission needed"
+            return "Bluetooth needs attention"
         case .unknown:
-            return "Checking Bluetooth..."
+            return transportState.isRunning ? "Looking nearby" : "Starting Bluetooth"
         case .allowed:
             if transportState.isScanning {
-                return "Scanning nearby..."
+                return "Looking nearby"
             }
-            return peers.isEmpty ? "No one nearby yet." : "Offline local mode active"
+            return peers.isEmpty ? "Ready. No one nearby" : "\(peers.count) nearby"
         }
     }
 
     public var needsBluetoothBanner: Bool {
-        transportState.permission == .denied || transportState.permission == .unavailable || transportState.permission == .unknown
+        transportState.permission == .denied || transportState.permission == .unavailable
     }
 
     public func start() {

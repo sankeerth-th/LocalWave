@@ -53,9 +53,9 @@ struct OnboardingView: View {
         switch viewModel.step {
         case .welcome:
             VStack(alignment: .leading, spacing: 12) {
-                PrivacyPoint(icon: LWSymbols.privacy, title: "No signup", body: "Your LocalWave identity is created on this device.")
-                PrivacyPoint(icon: LWSymbols.frequency, title: "Logical Frequency Code", body: "The code groups Bluetooth discovery and encrypted packets. It is not analog RF, internet, cellular service, or Wi-Fi messaging.")
-                PrivacyPoint(icon: "wifi.slash", title: "Offline nearby messaging", body: "Messages do not go through a backend relay.")
+                PrivacyPoint(icon: LWSymbols.frequency, title: "Pick a code", body: "Use the same Frequency Code as your team.")
+                PrivacyPoint(icon: LWSymbols.people, title: "Find nearby people", body: "People appear when Bluetooth can see them.")
+                PrivacyPoint(icon: LWSymbols.wake, title: "Wake or message", body: "Reach teammates when they are nearby.")
             }
         case .displayName:
             fieldCard(title: "Choose a display name") {
@@ -71,7 +71,7 @@ struct OnboardingView: View {
                     .autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Frequency Code")
-                Text("Use the exact same code as your nearby team. The code is a private Bluetooth grouping label, not a radio frequency.")
+                Text("Use the exact same code as your nearby team.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -79,9 +79,9 @@ struct OnboardingView: View {
         case .bluetooth:
             permissionCard(
                 title: "Bluetooth access",
-                body: "LocalWave needs Bluetooth to discover nearby teammates on the same Frequency Code.",
+                body: "Needed to find nearby people.",
                 buttonTitle: "Check Bluetooth",
-                value: viewModel.bluetoothPermission.rawValue
+                value: viewModel.bluetoothPermission.actionText
             ) {
                 Task {
                     await viewModel.requestBluetoothPermission()
@@ -90,9 +90,9 @@ struct OnboardingView: View {
         case .notifications:
             permissionCard(
                 title: "Wake and message alerts",
-                body: "Notifications can show local wake requests and nearby message updates while LocalWave is running.",
+                body: "Optional. Needed for Wake alerts.",
                 buttonTitle: "Check Notifications",
-                value: viewModel.notificationPermission.rawValue
+                value: viewModel.notificationPermission.actionText
             ) {
                 Task {
                     await viewModel.requestNotificationPermission()
@@ -131,20 +131,31 @@ struct OnboardingView: View {
     private var title: String {
         switch viewModel.step {
         case .welcome:
-            return "Nearby, private, offline"
+            return "Start LocalWave"
         case .displayName:
             return "Your local name"
         case .frequency:
             return "Join the team code"
         case .bluetooth:
-            return "Enable discovery"
+            return "Bluetooth"
         case .notifications:
             return "Stay reachable"
         }
     }
 
     private var subtitle: String {
-        "LocalWave creates encrypted Bluetooth conversations with people nearby. It does not require internet, cellular service, or an account."
+        switch viewModel.step {
+        case .welcome:
+            return "Nearby teammates on your team code."
+        case .displayName:
+            return "Pick the name teammates will recognize nearby."
+        case .frequency:
+            return "Use the same code as your team."
+        case .bluetooth:
+            return "Let LocalWave scan nearby."
+        case .notifications:
+            return "Notifications are optional and help with Wake alerts."
+        }
     }
 
     private func fieldCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -166,15 +177,32 @@ struct OnboardingView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    LabeledContent("Current state", value: value)
-                    Spacer()
-                }
                 Button(action: action) {
-                    Label(buttonTitle, systemImage: "checkmark.shield")
+                    Label(value == "Allowed" ? value : buttonTitle, systemImage: value == "Allowed" ? "checkmark.circle.fill" : "checkmark.shield")
                 }
                 .buttonStyle(.bordered)
             }
+        }
+    }
+}
+
+private extension BluetoothPermissionState {
+    var actionText: String {
+        switch self {
+        case .unknown: return "Check Bluetooth"
+        case .allowed: return "Allowed"
+        case .denied: return "Open Settings"
+        case .unavailable: return "Unavailable"
+        }
+    }
+}
+
+private extension NotificationPermissionState {
+    var actionText: String {
+        switch self {
+        case .unknown: return "Check Notifications"
+        case .allowed: return "Allowed"
+        case .denied: return "Open Settings"
         }
     }
 }

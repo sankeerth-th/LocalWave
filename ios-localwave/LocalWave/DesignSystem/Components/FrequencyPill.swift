@@ -15,7 +15,7 @@ struct FrequencyPill: View {
                 .font(.headline.monospaced())
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
-            Image(systemName: LWSymbols.lock)
+            Image(systemName: isScanning ? "dot.radiowaves.left.and.right" : "checkmark.circle.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
@@ -23,6 +23,6 @@ struct FrequencyPill: View {
         .padding(.vertical, 9)
         .background(LWMaterials.prominent, in: Capsule())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Frequency Code \(channel.normalized), logical private Bluetooth channel")
+        .accessibilityLabel("Frequency Code \(channel.normalized)")
     }
 }

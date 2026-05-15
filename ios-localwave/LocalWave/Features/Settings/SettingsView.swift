@@ -5,7 +5,7 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("Local Profile") {
+            Section("Profile") {
                 TextField("Display Name", text: $viewModel.displayName)
                     .textContentType(.name)
                     .accessibilityLabel("Display name")
@@ -25,23 +25,35 @@ struct SettingsView: View {
                     Label("Switch Frequency Code", systemImage: LWSymbols.frequency)
                 }
 
+            }
+
+            Section("Security") {
                 if let identity = viewModel.identity {
-                    LabeledContent("Fingerprint", value: identity.fingerprint)
+                    NavigationLink {
+                        IdentityFingerprintView(title: "My Identity", fingerprint: identity.fingerprint)
+                    } label: {
+                        Label("Identity Fingerprint", systemImage: LWSymbols.fingerprint)
+                    }
+                }
+                NavigationLink {
+                    PrivacyExplanationView()
+                } label: {
+                    Label("Privacy", systemImage: LWSymbols.privacy)
                 }
             }
 
-            Section("Privacy") {
-                Label("No account or backend relay", systemImage: "person.crop.circle.badge.xmark")
-                Label("Frequency Code is a logical Bluetooth channel", systemImage: LWSymbols.frequency)
-                Label("Not analog RF, internet, cellular, or Wi-Fi messaging", systemImage: "wifi.slash")
-            }
-
             Section("Permissions") {
-                LabeledContent("Bluetooth", value: viewModel.permissionSnapshot.bluetooth.rawValue.capitalized)
-                LabeledContent("Notifications", value: viewModel.permissionSnapshot.notifications.rawValue)
+                LabeledContent("Bluetooth", value: viewModel.permissionSnapshot.bluetooth.settingsText)
+                LabeledContent("Notifications", value: viewModel.permissionSnapshot.notifications.settingsText)
             }
 
-            DiagnosticsSection(viewModel: viewModel)
+            Section {
+                NavigationLink {
+                    DebugDiagnosticsView(viewModel: viewModel)
+                } label: {
+                    Label("Diagnostics", systemImage: LWSymbols.diagnostics)
+                }
+            }
 
             if let error = viewModel.errorMessage {
                 Section {
@@ -54,6 +66,27 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .task {
             viewModel.start()
+        }
+    }
+}
+
+private extension BluetoothPermissionState {
+    var settingsText: String {
+        switch self {
+        case .unknown: return "Not checked"
+        case .allowed: return "Allowed"
+        case .denied: return "Denied"
+        case .unavailable: return "Unavailable"
+        }
+    }
+}
+
+private extension NotificationPermissionState {
+    var settingsText: String {
+        switch self {
+        case .unknown: return "Not checked"
+        case .allowed: return "Allowed"
+        case .denied: return "Denied"
         }
     }
 }

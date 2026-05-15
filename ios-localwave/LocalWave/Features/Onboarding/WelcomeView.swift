@@ -10,11 +10,11 @@ struct WelcomeView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 10) {
-                Text("No internet. No signup. Nearby only.")
+                Text("Start LocalWave")
                     .font(.largeTitle.bold())
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.72)
-                Text("Join a private local Bluetooth channel with a display name and Frequency Code.")
+                Text("Join teammates on the same Frequency Code.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -23,9 +23,9 @@ struct WelcomeView: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("Bluetooth-only nearby discovery", systemImage: LWSymbols.bluetooth)
-                    Label("No account, phone number, email, server, cloud, or analytics", systemImage: LWSymbols.privacy)
-                    Label("Wake sends a local Bluetooth ping when reachable", systemImage: LWSymbols.wake)
+                    Label("Find nearby teammates", systemImage: LWSymbols.bluetooth)
+                    Label("Use the team Frequency Code", systemImage: LWSymbols.frequency)
+                    Label("Wake or message when reachable", systemImage: LWSymbols.wake)
                 }
                 .font(.subheadline)
             }
@@ -34,4 +34,3 @@ struct WelcomeView: View {
         .padding(LWTheme.screenPadding)
     }
 }
-

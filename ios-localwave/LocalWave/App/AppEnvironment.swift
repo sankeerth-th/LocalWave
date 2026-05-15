@@ -3,6 +3,10 @@ import Foundation
 public enum LocalWaveAppMode: String, Sendable {
     case mock = "Mock Engine"
     case real = "Real Engine"
+
+    public var isMock: Bool {
+        self == .mock
+    }
 }
 
 public enum NotificationPermissionState: String, Sendable {
@@ -59,17 +63,23 @@ public struct AppEnvironment: Sendable {
     }
 
     public static var live: AppEnvironment {
+        let permissions = ApplePermissionService()
         #if targetEnvironment(simulator)
-        return .mock
+        let engine = MockLocalWaveEngine(seedSampleData: false)
+        return AppEnvironment(
+            engine: engine,
+            mode: .mock,
+            requestBluetoothPermission: { await permissions.requestBluetoothPermission() },
+            requestNotificationPermission: { await permissions.requestNotificationPermission() },
+            permissionSnapshot: { await permissions.snapshot() }
+        )
         #else
         return AppEnvironment(
             engine: LocalWaveEngine(),
             mode: .real,
-            requestBluetoothPermission: { .unknown },
-            requestNotificationPermission: { .unknown },
-            permissionSnapshot: {
-                PermissionSnapshot(bluetooth: .unknown, notifications: .unknown)
-            }
+            requestBluetoothPermission: { await permissions.requestBluetoothPermission() },
+            requestNotificationPermission: { await permissions.requestNotificationPermission() },
+            permissionSnapshot: { await permissions.snapshot() }
         )
         #endif
     }

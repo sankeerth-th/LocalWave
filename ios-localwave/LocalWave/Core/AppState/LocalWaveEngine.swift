@@ -42,8 +42,8 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         self.channel = channel
         self.displayName = trimmed
         let identity = try await identityStore.loadOrCreateIdentity(displayName: trimmed)
-        try await transport.start(channel: channel, identity: identity)
         observeTransportEvents()
+        try await transport.start(channel: channel, identity: identity)
         peers = try await peerRepository.peers()
         publishPeers()
     }

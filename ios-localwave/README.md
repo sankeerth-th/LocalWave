@@ -21,7 +21,7 @@ For stronger privacy, use a private channel password/invite phrase in addition t
 - Bluetooth permission
 - Notification permission for Wake alerts
 
-The simulator can build the app and run unit/view-model tests, but it cannot validate real CoreBluetooth central/peripheral behavior between phones.
+The simulator can build the app and run unit/view-model tests, but it cannot validate real CoreBluetooth central/peripheral behavior between phones. Simulator UI uses a mock engine with no seeded peers in live mode, so it must not be treated as physical-device BLE evidence.
 
 ## Build
 
@@ -36,7 +36,7 @@ Open `LocalWave.xcodeproj` in Xcode, select the `LocalWave` scheme, choose a phy
 
 The app shell lives under `LocalWave/App`, UI state under `LocalWave/AppState`, reusable native components under `LocalWave/DesignSystem`, and screens under `LocalWave/Features`.
 
-SwiftUI screens integrate only through `LocalWaveEngineProtocol`. Previews and simulator development use `MockLocalWaveEngine`, which is labeled as mock mode in Diagnostics. A production engine can be injected with `AppEnvironment(engine: realEngine, mode: .real)` without changing SwiftUI screens.
+SwiftUI screens integrate only through `LocalWaveEngineProtocol`. Previews and simulator development use `MockLocalWaveEngine`; production device builds use the CoreBluetooth engine through the same `AppEnvironment` contract. Mock mode is exposed in Diagnostics, not as fake peers on the main People screen.
 
 Main UI flows:
 - Onboarding: welcome, display name, Frequency Code, Bluetooth education, notification education.

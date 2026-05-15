@@ -13,15 +13,34 @@ enum LWTheme {
     static let muted = Color.secondary
 
     static var background: some View {
+        LocalWaveBackground()
+    }
+}
+
+private struct LocalWaveBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
         LinearGradient(
-            colors: [
-                Color(uiColor: .systemBackground),
-                Color(uiColor: .secondarySystemBackground)
-            ],
+            colors: colors,
             startPoint: .top,
             endPoint: .bottom
         )
         .ignoresSafeArea()
     }
-}
 
+    private var colors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.03, green: 0.04, blue: 0.05),
+                Color(red: 0.06, green: 0.08, blue: 0.10),
+                Color(uiColor: .systemBackground)
+            ]
+        }
+
+        return [
+            Color(uiColor: .systemBackground),
+            Color(uiColor: .secondarySystemBackground)
+        ]
+    }
+}

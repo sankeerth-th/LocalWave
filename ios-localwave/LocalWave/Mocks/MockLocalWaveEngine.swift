@@ -11,8 +11,11 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
     private var simulationTask: Task<Void, Never>?
     private var identity = PreviewData.identity
     private var messageSendDelayNanoseconds: UInt64 = 500_000_000
+    private let seedSampleData: Bool
 
-    public init() {}
+    public init(seedSampleData: Bool = true) {
+        self.seedSampleData = seedSampleData
+    }
 
     public convenience init(
         peers: [PeerProfile],
@@ -20,7 +23,7 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
         transportState: TransportState = TransportState(permission: .allowed),
         sendDelayNanoseconds: UInt64 = 500_000_000
     ) {
-        self.init()
+        self.init(seedSampleData: false)
         lock.withLock {
             self.peers = peers
             self.messagesByPeer = messagesByPeer
@@ -32,10 +35,12 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
     public func start(channel: ChannelCode, displayName: String) async throws {
         lock.withLock {
             identity.displayName = displayName
-            peers = PreviewData.peers
             transportState = TransportState(isRunning: true, isScanning: true, isAdvertising: true, permission: .allowed)
-            for peer in peers where messagesByPeer[peer.id] == nil {
-                messagesByPeer[peer.id] = PreviewData.messages(peerId: peer.id)
+            if seedSampleData {
+                peers = PreviewData.peers
+                for peer in peers where messagesByPeer[peer.id] == nil {
+                    messagesByPeer[peer.id] = PreviewData.messages(peerId: peer.id)
+                }
             }
         }
         broadcastTransport()
@@ -69,9 +74,11 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
 
         try await Task.sleep(nanoseconds: 600_000_000)
         lock.withLock {
-            peers = PreviewData.peers
-            for peer in peers {
-                messagesByPeer[peer.id] = PreviewData.messages(peerId: peer.id)
+            if seedSampleData {
+                peers = PreviewData.peers
+                for peer in peers {
+                    messagesByPeer[peer.id] = PreviewData.messages(peerId: peer.id)
+                }
             }
         }
         broadcastPeers()
@@ -253,6 +260,7 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
 }
 
 private extension NSLock {
+    @discardableResult
     func withLock<T>(_ body: () -> T) -> T {
         lock()
         defer { unlock() }

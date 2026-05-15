@@ -55,6 +55,7 @@
 		AE3CB33A58DEAC1AA992A8A6 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C077BFE90CD5F2B74FBE1869 /* SettingsViewModel.swift */; };
 		B2055732E76AC2C209DBCCDA /* CryptoErrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E4B6742993F009C4048103 /* CryptoErrors.swift */; };
 		B46621C342C49C5F485AC87B /* PeopleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457BABD435D7A9781642C7B3 /* PeopleViewModelTests.swift */; };
+		B4EB04F8286D1D2B3A9E6755 /* ApplePermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9574D0B7E2F30BF2B27E76A /* ApplePermissionService.swift */; };
 		B710F921175527CF029B0F59 /* PeerRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F91F3B5576C0798AACC762F /* PeerRepository.swift */; };
 		B7D717D2352CDA17FFD22FFD /* PeerAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608ED6A16DD8FB3E3AD16405 /* PeerAvatar.swift */; };
 		BABD51CC30A92C15D13395A3 /* LWAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 638F892150A4CAB0184FD958 /* LWAnimations.swift */; };
@@ -104,7 +105,7 @@
 		05A5B7816B37199F1B926259 /* PrivacyExplanationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyExplanationView.swift; sourceTree = "<group>"; };
 		0619B47FB694F549CAB57E7D /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		0648E78A511B84619DF7BBD3 /* ChatViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelTests.swift; sourceTree = "<group>"; };
-		0924864A6577A621D1424AE2 /* LocalWave.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LocalWave.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0924864A6577A621D1424AE2 /* LocalWave.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalWave.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0C6F806F08CE067DF8130965 /* FrequencyJoinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyJoinView.swift; sourceTree = "<group>"; };
 		0DD78BD244F675E3BD68BDF6 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 		158B7ABD59FBE97D676219B5 /* LWMaterials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LWMaterials.swift; sourceTree = "<group>"; };
@@ -171,6 +172,7 @@
 		CC544D646979A3DEEC306F0A /* MessageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRepository.swift; sourceTree = "<group>"; };
 		D33CF4D07A40555C2599F655 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		D65636CD2797EDA4F551527B /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		D9574D0B7E2F30BF2B27E76A /* ApplePermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePermissionService.swift; sourceTree = "<group>"; };
 		DF8FC25C673DA552097549FB /* IdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityStore.swift; sourceTree = "<group>"; };
 		E199FC27B0655455E10FEEB6 /* FrequencyHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyHeaderView.swift; sourceTree = "<group>"; };
 		E44C0B1F344B20EC598B5394 /* SessionCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCrypto.swift; sourceTree = "<group>"; };
@@ -230,6 +232,7 @@
 			isa = PBXGroup;
 			children = (
 				41B618F4CDAE7194CDC1D6CA /* AppEnvironment.swift */,
+				D9574D0B7E2F30BF2B27E76A /* ApplePermissionService.swift */,
 				B2A9D9ABDA3E1A5C1E6F648A /* AppRootView.swift */,
 				93DFCABA0F946A3E7E97EDF7 /* LocalWaveApp.swift */,
 			);
@@ -527,9 +530,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					375BC51F5594B63CA8A7628F = {
-						DevelopmentTeam = "";
-					};
 					D79797F529868745F3C9D86E = {
 						DevelopmentTeam = "";
 					};
@@ -578,6 +578,7 @@
 				7D1332A7B505B58EF54A5A22 /* AppEnvironment.swift in Sources */,
 				636C66171D600752B50F96C7 /* AppRootView.swift in Sources */,
 				F75674F2583E350313849741 /* AppStore.swift in Sources */,
+				B4EB04F8286D1D2B3A9E6755 /* ApplePermissionService.swift in Sources */,
 				1AF6109B76D984B016B082C1 /* BLEPacketFramer.swift in Sources */,
 				210E9BDD95986E169126F0CE /* BLEUUIDFactory.swift in Sources */,
 				539A6F39A144CEC6BD92A436 /* ChannelCode.swift in Sources */,
@@ -723,14 +724,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LocalWave/Resources/LocalWave.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 2FUJ9C5CK3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = LocalWave;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "LocalWave uses Bluetooth to discover nearby teammates on the same Frequency Code and exchange encrypted messages without internet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIBackgroundModes = (
-					"bluetooth-central",
-					"bluetooth-peripheral",
-				);
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central bluetooth-peripheral";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -765,14 +764,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LocalWave/Resources/LocalWave.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 2FUJ9C5CK3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = LocalWave;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "LocalWave uses Bluetooth to discover nearby teammates on the same Frequency Code and exchange encrypted messages without internet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIBackgroundModes = (
-					"bluetooth-central",
-					"bluetooth-peripheral",
-				);
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central bluetooth-peripheral";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

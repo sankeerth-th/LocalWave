@@ -10,8 +10,11 @@ public final class ChatViewModel: ObservableObject {
 
     public let environment: AppEnvironment
     @Published public private(set) var peer: PeerProfile
+    @Published public private(set) var transportState = TransportState()
 
     private var messagesTask: Task<Void, Never>?
+    private var peerTask: Task<Void, Never>?
+    private var transportTask: Task<Void, Never>?
 
     public init(environment: AppEnvironment, peer: PeerProfile) {
         self.environment = environment
@@ -20,10 +23,12 @@ public final class ChatViewModel: ObservableObject {
 
     deinit {
         messagesTask?.cancel()
+        peerTask?.cancel()
+        transportTask?.cancel()
     }
 
     public var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isPeerReachable && !isSending
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isPeerReachable && transportState.permission == .allowed && !isSending
     }
 
     public var isPeerReachable: Bool {
@@ -42,11 +47,34 @@ public final class ChatViewModel: ObservableObject {
                 self.messages = messages.sorted { $0.sentAt < $1.sentAt }
             }
         }
+
+        peerTask = Task { [environment, peerID = peer.id] in
+            for await peers in environment.engine.observePeers() {
+                if Task.isCancelled { return }
+                if let updatedPeer = peers.first(where: { $0.id == peerID }) {
+                    self.peer = updatedPeer
+                } else if self.peer.state == .available || self.peer.state == .connecting {
+                    self.peer.state = .recentlySeen
+                    self.peer.lastSeen = Date()
+                }
+            }
+        }
+
+        transportTask = Task { [environment] in
+            for await state in environment.engine.observeTransportState() {
+                if Task.isCancelled { return }
+                self.transportState = state
+            }
+        }
     }
 
     public func stop() {
         messagesTask?.cancel()
+        peerTask?.cancel()
+        transportTask?.cancel()
         messagesTask = nil
+        peerTask = nil
+        transportTask = nil
     }
 
     public func sendDraft() async {
@@ -90,9 +118,12 @@ public final class ChatViewModel: ObservableObject {
 
         do {
             _ = try await environment.engine.sendMessage(text: text, to: peer.id)
+        } catch LocalWaveError.peerUnavailable {
+            peer.state = .recentlySeen
+            peer.lastSeen = Date()
+            errorMessage = LocalWaveError.peerUnavailable.localizedDescription
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 }
-
