@@ -5,6 +5,7 @@ import com.localwave.core.model.MessageStatus
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.TransportPermissionState
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -25,5 +26,17 @@ class MockLocalWaveEngineTest {
 
         engine.switchChannel(ChannelCode("DOCK-B-17"))
         assertTrue(engine.observePeers().first().all { it.id != PeerId("mock-alex") })
+    }
+
+    @Test
+    fun observeMessagesEmitsMessagesSentAfterSubscription() = runTest {
+        val engine = MockLocalWaveEngine()
+        engine.start(ChannelCode("DOCK-A-17"), "Android")
+        val peerId = engine.observePeers().first().first().id
+        val observed = async { engine.observeMessages(peerId).first { it.isNotEmpty() } }
+
+        engine.sendMessage("hello after subscription", peerId)
+
+        assertEquals(1, observed.await().size)
     }
 }

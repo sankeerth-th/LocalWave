@@ -15,6 +15,7 @@ import com.localwave.core.protocol.LocalWaveEngine
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
 class MockLocalWaveEngine(
@@ -71,7 +72,7 @@ class MockLocalWaveEngine(
     }
 
     override fun observePeers(): Flow<List<PeerProfile>> = peers
-    override fun observeMessages(peerId: PeerId): Flow<List<ChatMessage>> = MutableStateFlow(messages.value[peerId].orEmpty())
+    override fun observeMessages(peerId: PeerId): Flow<List<ChatMessage>> = messages.map { it[peerId].orEmpty() }
     override fun observeTransportState(): Flow<TransportState> = state
     override suspend fun localIdentity(): LocalIdentity = identity
 
