@@ -23,7 +23,7 @@ Covered behaviors:
 - Message send moves through pending/sent
 - Wake unavailable state is surfaced
 
-Thread 2 view-model coverage:
+View-model coverage:
 - Onboarding validates display name and Frequency Code before completion
 - App setup stores normalized Frequency Code and display name
 - People view model observes peer and transport streams

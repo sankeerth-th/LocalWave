@@ -21,7 +21,7 @@ Install on a physical Android phone:
 adb shell am start -n com.localwave/.MainActivity
 ```
 
-The app entry point is `com.localwave.app.MainActivity`. Thread 4 adds the Android-native Compose product shell on top of the Thread 3 engine contract.
+The app entry point is `com.localwave.app.MainActivity`. The Android-native Compose product shell is built on top of the LocalWave engine contract.
 
 ## Compose Product UI
 
@@ -32,7 +32,7 @@ The app includes:
 - Chat screen: peer status, signal, Wake, message composer, pending/sent/delivered/failed labels, 4 KB limit
 - Settings: profile, Frequency Code, privacy explanation, identity fingerprint, permissions, redacted diagnostics
 
-The UI depends on `LocalWaveEngine`, not concrete BLE, crypto, packet framing, Room DAO, or Android Keystore classes. `MockLocalWaveEngine` supports previews, unit tests, and emulator UI checks; `RealLocalWaveEngine` remains the Thread 3 integration point.
+The UI depends on `LocalWaveEngine`, not concrete BLE, crypto, packet framing, Room DAO, or Android Keystore classes. `MockLocalWaveEngine` supports previews, unit tests, and emulator UI checks; `RealLocalWaveEngine` provides the production integration point.
 
 Wake and background language is intentionally best-effort: Android notification permission, DND/Focus equivalents, Bluetooth state, background limits, and battery policy can affect reachability.
 

@@ -16,9 +16,8 @@ struct ChannelSettingsView: View {
             Text("Coming soon")
                 .foregroundStyle(.secondary)
         }
-        Text("Password support will be enabled only when Thread 1 exposes it in the engine contract.")
+        Text("Password support will be enabled when the engine exposes private channel password storage.")
             .font(.footnote)
             .foregroundStyle(.secondary)
     }
 }
-

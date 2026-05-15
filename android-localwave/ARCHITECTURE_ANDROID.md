@@ -2,22 +2,22 @@
 
 ## Layers
 
-- `core/model`: Kotlin value types shared with Thread 4.
-- `core/protocol`: Thread 4 integration interfaces, channel derivation, protocol constants, JSON envelope codec, and `RealLocalWaveEngine`.
+- `core/model`: Kotlin value types shared across engine and UI layers.
+- `core/protocol`: UI integration interfaces, channel derivation, protocol constants, JSON envelope codec, and `RealLocalWaveEngine`.
 - `core/crypto`: identity generation/storage, X25519 session crypto, HKDF-SHA256, AES-GCM envelopes, replay validation.
 - `core/bluetooth`: Android BLE scan/advertise/GATT roles, packet framing, permissions, active foreground service foundation.
 - `core/persistence`: Room entities, DAOs, and repositories for peers/messages/replay/trust/diagnostics.
 - `core/notifications`: Wake and active-mode notification channel/notification helpers.
-- `mock`: `MockLocalWaveEngine` for Thread 4 Compose development.
-- `app`: Thread 4 application entry, environment selection, DataStore-backed app state, and Navigation Compose shell.
+- `mock`: `MockLocalWaveEngine` for Compose previews, tests, and emulator development.
+- `app`: application entry, environment selection, DataStore-backed app state, and Navigation Compose shell.
 - `design`: Material 3 LocalWave theme and reusable Compose components.
-- `feature/onboarding`, `feature/people`, `feature/chat`, `feature/settings`: Thread 4 product screens and StateFlow view models.
+- `feature/onboarding`, `feature/people`, `feature/chat`, `feature/settings`: product screens and StateFlow view models.
 
 ## Engine Contract
 
-Thread 4 should depend on `LocalWaveEngine`, `CryptoService`, `MessageRepository`, `PeerRepository`, and model classes only. BLE implementation details stay inside `core/bluetooth`.
+UI and app state should depend on `LocalWaveEngine`, `CryptoService`, `MessageRepository`, `PeerRepository`, and model classes only. BLE implementation details stay inside `core/bluetooth`.
 
-## Thread 4 Navigation And State
+## Navigation And State
 
 Navigation routes:
 

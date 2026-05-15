@@ -78,7 +78,7 @@ fun ActiveModeCard(activeModeAvailable: Boolean) {
     GlassCard {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Active LocalWave Mode", fontWeight = FontWeight.Bold)
-            Text(if (activeModeAvailable) "Available from the core engine." else "Unavailable until Thread 3 exposes service hooks.")
+            Text(if (activeModeAvailable) "Available from the core engine." else "Unavailable until local service hooks are enabled.")
             Text("Android battery settings may affect background discovery.", style = MaterialTheme.typography.bodySmall)
         }
     }

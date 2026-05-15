@@ -17,7 +17,7 @@ Covered unit behavior:
 - Room peer/message repositories.
 - Redacted logger.
 - Mock engine state/message behavior.
-- Thread 4 display-name validation and mock message pending behavior.
+- Display-name validation and mock message pending behavior.
 
 ## Compose UI Tests
 
@@ -45,7 +45,7 @@ adb -s <serial> shell am start -n com.localwave/.app.MainActivity
 adb -s <serial> exec-out screencap -p > /tmp/localwave-android.png
 ```
 
-Manual Thread 4 UI path:
+Manual UI path:
 
 1. Complete onboarding with a non-empty display name and valid Frequency Code.
 2. Confirm blank display names and short Frequency Codes are blocked.

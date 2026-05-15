@@ -50,7 +50,7 @@ Mitigations: default copy avoids message content and uses only display name when
 
 The manifest does not request `INTERNET`. The project does not include Firebase, Supabase, analytics, tracking SDKs, backend clients, or server relay code.
 
-## Thread 4 UI And Diagnostics Rules
+## UI And Diagnostics Rules
 
 - Permission copy says Bluetooth is required for nearby LocalWave users and notifications are optional for Wake alerts.
 - Frequency Code copy says logical Bluetooth channel, not real RF tuning.

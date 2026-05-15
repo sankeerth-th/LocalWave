@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class Thread4ValidationTest {
+class ProductValidationTest {
     @Test
     fun channelCodeNormalizesWhitespaceAndCase() {
         assertEquals("DOCK A", ChannelCode.parse(" dock   a ").normalized)

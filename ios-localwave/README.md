@@ -36,7 +36,7 @@ Open `LocalWave.xcodeproj` in Xcode, select the `LocalWave` scheme, choose a phy
 
 The app shell lives under `LocalWave/App`, UI state under `LocalWave/AppState`, reusable native components under `LocalWave/DesignSystem`, and screens under `LocalWave/Features`.
 
-Thread 2 UI integrates only through `LocalWaveEngineProtocol`. Previews and simulator development use `MockLocalWaveEngine`, which is labeled as mock mode in Diagnostics. Thread 1 can replace the mock by constructing `AppEnvironment(engine: realEngine, mode: .real)` without changing SwiftUI screens.
+SwiftUI screens integrate only through `LocalWaveEngineProtocol`. Previews and simulator development use `MockLocalWaveEngine`, which is labeled as mock mode in Diagnostics. A production engine can be injected with `AppEnvironment(engine: realEngine, mode: .real)` without changing SwiftUI screens.
 
 Main UI flows:
 - Onboarding: welcome, display name, Frequency Code, Bluetooth education, notification education.

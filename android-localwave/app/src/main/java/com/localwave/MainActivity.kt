@@ -29,7 +29,7 @@ private fun DiagnosticPlaceholder() {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text("LocalWave Android Core", style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Thread 3 diagnostic shell. Core BLE, crypto, persistence, permissions, and mock engine are available for Thread 4 integration.")
+                Text("Core BLE, crypto, persistence, permissions, and mock engine services are available for product integration.")
                 Spacer(modifier = Modifier.height(12.dp))
                 Text("No internet. No signup. Nearby Bluetooth only.")
             }
