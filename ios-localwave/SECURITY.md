@@ -87,6 +87,10 @@ Limitations:
 - AES.GCM authenticated encryption for envelopes
 - P256 signing key for local identity support where needed by presence/trust flows
 - Keychain storage for private identity keys
+- Random 256-bit object keys for file/object transfer
+- Per-recipient object-key wrapping with the pairwise session-derived wrapping key
+- Encrypted object manifests and encrypted object pieces cached under app-private storage
+- XOR parity recovery only, one missing piece per stripe; this is not Reed-Solomon
 
 Every envelope includes:
 - version
@@ -98,6 +102,16 @@ Every envelope includes:
 - authentication tag
 - message ID where applicable
 - replay counter
+
+## Invite Proof And PAKE Gate
+
+The current implementation includes invite-authenticated proof and transcript binding tests. It must not be marketed or documented as SPAKE2, OPAQUE, or a complete standards PAKE. A vetted PAKE dependency and interoperability test vectors remain a production security gate before strong password-authenticated first-contact claims.
+
+## Object Transfer Security
+
+LocalWave object transfer encrypts metadata and content before caching or transport. Relays and native-share carriers see only encrypted manifests, encrypted pieces, object IDs, expiry, sizes, and route metadata. Receivers reject expired objects, manifest commitment mismatches, Merkle root mismatches, bad encrypted-piece hashes, wrong wrapped object keys, and final plaintext hash mismatches.
+
+Native share packages are user-mediated transport. AirDrop, Quick Share, or any other Sharesheet target is not treated as proof of delivery. Sender-side completion requires an in-app transfer receipt.
 
 ## Logging Rules
 

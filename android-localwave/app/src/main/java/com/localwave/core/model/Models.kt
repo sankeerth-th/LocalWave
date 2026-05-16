@@ -106,7 +106,10 @@ enum class TransportCapability {
     L2CAP_COC,
     NATIVE_SHARE_PACKAGE,
     FIXED_RELAY,
-    PHONE_RELAY_BEST_EFFORT
+    PHONE_RELAY_BEST_EFFORT,
+    OBJECT_CACHE,
+    RELAY_CACHE,
+    FEC_PIECES
 }
 
 enum class DeliveryRoute {
@@ -120,13 +123,25 @@ enum class DeliveryRoute {
 enum class TransferStatus {
     QUEUED,
     NEGOTIATING,
+    ANNOUNCED,
+    ACCEPTED,
+    MANIFEST_RECEIVED,
+    SESSION_NEGOTIATED,
+    TRANSFERRING,
     SENDING,
     EXPORTED,
     IMPORTING,
+    WAITING_FOR_PEER,
+    WAITING_FOR_RELAY,
+    VERIFYING,
+    RECONSTRUCTING,
+    DECRYPTING,
+    COMPLETED,
     DELIVERED,
     PENDING,
     FAILED,
-    EXPIRED
+    EXPIRED,
+    CANCELLED
 }
 
 data class PeerProfile(
@@ -275,12 +290,134 @@ data class EncryptedSharePackage(
     val route: DeliveryRoute,
     val senderId: PeerId,
     val recipientId: PeerId,
-    val envelope: AttachmentEnvelope
+    val envelope: AttachmentEnvelope,
+    val objectManifest: EncryptedObjectManifest? = null,
+    val objectPieces: List<ObjectPiece>? = null,
+    val senderFingerprint: String? = null,
+    val senderAgreementPublicKey: ByteArray? = null
 ) {
     companion object {
         const val FILE_EXTENSION: String = "localwavepkg"
     }
 }
+
+enum class ObjectPieceKind {
+    DATA,
+    RECOVERY
+}
+
+enum class ObjectRelayPolicy {
+    DIRECT_ONLY,
+    TRUSTED_PEERS_ONLY
+}
+
+data class ObjectManifestPlaintext(
+    val objectProtocolVersion: UByte = 1u,
+    val senderId: PeerId,
+    val recipientIds: List<PeerId>,
+    val objectType: String,
+    val fileName: String,
+    val mimeType: String,
+    val plainSize: Int,
+    val encryptedSize: Int,
+    val pieceSize: Int,
+    val pieceCount: Int,
+    val recoveryPieceCount: Int,
+    val dataPieceHashes: List<ByteArray>,
+    val plainPieceHashes: List<ByteArray>,
+    val merkleRoot: ByteArray,
+    val plainSha256: ByteArray,
+    val createdAtEpochMillis: Long,
+    val expiresAtEpochMillis: Long,
+    val relayPolicy: ObjectRelayPolicy,
+    val previewPolicy: String
+)
+
+data class EncryptedObjectManifest(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val senderId: PeerId,
+    val recipientId: PeerId,
+    val createdAtEpochMillis: Long,
+    val expiresAtEpochMillis: Long,
+    val nonce: ByteArray,
+    val ciphertext: ByteArray,
+    val tag: ByteArray,
+    val wrappedObjectKeyNonce: ByteArray,
+    val wrappedObjectKeyCiphertext: ByteArray,
+    val wrappedObjectKeyTag: ByteArray,
+    val senderFingerprint: String,
+    val senderAgreementPublicKey: ByteArray
+)
+
+data class ObjectPiece(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val pieceIndex: Int,
+    val pieceKind: ObjectPieceKind,
+    val nonce: ByteArray,
+    val ciphertext: ByteArray,
+    val tag: ByteArray,
+    val pieceHash: ByteArray,
+    val merkleProof: List<ByteArray> = emptyList()
+)
+
+data class ObjectPieceBatch(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val pieces: List<ObjectPiece>
+)
+
+data class PieceInventory(
+    val objectProtocolVersion: UByte = 1u,
+    val peerId: PeerId,
+    val objectId: String,
+    val dataPieceIndexes: List<Int>,
+    val recoveryPieceIndexes: List<Int>,
+    val updatedAtEpochMillis: Long
+)
+
+data class ResumeToken(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val receiverId: PeerId,
+    val receivedPieceIndexes: List<Int>,
+    val receivedBitmapHash: ByteArray,
+    val lastVerifiedPiece: Int,
+    val timestampEpochMillis: Long
+)
+
+data class RelayToken(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val allowedRelayPeerId: PeerId,
+    val recipientId: PeerId,
+    val expiresAtEpochMillis: Long,
+    val maxBytes: Int,
+    val signature: ByteArray
+)
+
+data class TransferReceipt(
+    val objectProtocolVersion: UByte = 1u,
+    val transferId: TransferId,
+    val objectId: String,
+    val senderId: PeerId,
+    val recipientId: PeerId,
+    val completedAtEpochMillis: Long,
+    val verifiedPlainSha256: ByteArray
+)
+
+data class LocalWaveObjectPackage(
+    val manifest: EncryptedObjectManifest,
+    val pieces: List<ObjectPiece>
+)
+
+data class ObjectTransferResult(
+    val transferId: TransferId,
+    val objectId: String,
+    val attachment: OutboundAttachment,
+    val receipt: TransferReceipt
+)
 
 data class ImportedSharePackage(
     val transferId: TransferId,
@@ -352,7 +489,9 @@ enum class TransportPacketKind(val wireValue: UByte) {
     PRESENCE(1u),
     MESSAGE(2u),
     WAKE(3u),
-    RECEIPT(4u);
+    RECEIPT(4u),
+    OBJECT_MANIFEST(5u),
+    OBJECT_CONTROL(6u);
 
     companion object {
         fun fromWire(value: UByte): TransportPacketKind =

@@ -251,6 +251,18 @@ public actor SessionCrypto: CryptoServiceProtocol {
         }
     }
 
+    public func objectWrappingKey(to peer: PeerProfile, channel: ChannelCode) async throws -> SymmetricKey {
+        guard let peerPublicKeyData = peer.publicKeyData else { throw LocalWaveError.peerUnavailable }
+        let keyPair = try await identityStore.keyPair()
+        return try deriveKey(
+            localPrivateKeyData: keyPair.agreementPrivateKeyData,
+            remotePublicKeyData: peerPublicKeyData,
+            localPeerId: keyPair.identity.peerId,
+            remotePeerId: peer.id,
+            channel: channel
+        )
+    }
+
     private func deriveKey(
         localPrivateKeyData: Data,
         remotePublicKeyData: Data,

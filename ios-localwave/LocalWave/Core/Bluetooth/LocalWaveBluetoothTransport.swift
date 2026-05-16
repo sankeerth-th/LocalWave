@@ -1,4 +1,5 @@
 import CoreBluetooth
+import CryptoKit
 import Foundation
 
 public enum BluetoothTransportEvent: Sendable {
@@ -23,6 +24,7 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
         var fingerprint: String
         var agreementPublicKey: Data
         var l2capPSM: UInt16?
+        var discoveryToken: Data
     }
 
     private let queue = DispatchQueue(label: "com.localwave.bluetooth.transport")
@@ -191,23 +193,23 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
     }
 
     private func advertiseService() {
-        guard let peripheralManager, let profile else { return }
+        guard let peripheralManager, let profile, localL2CAPPSM != nil else { return }
         let advertisement: [String: Any] = [
-            CBAdvertisementDataServiceUUIDsKey: [profile.serviceUUID],
-            CBAdvertisementDataLocalNameKey: "LocalWave"
+            CBAdvertisementDataServiceUUIDsKey: [profile.serviceUUID]
         ]
         peripheralManager.startAdvertising(advertisement)
         updateState(TransportState(isRunning: true, isScanning: centralManager?.isScanning == true, isAdvertising: true, permission: .allowed))
     }
 
     private func presenceData() -> Data? {
-        guard let identity else { return nil }
+        guard let identity, let channel else { return nil }
         let presence = PresenceAdvertisement(
             peerId: identity.peerId,
             displayName: identity.displayName,
             fingerprint: identity.fingerprint,
             agreementPublicKey: identity.agreementPublicKey,
-            l2capPSM: localL2CAPPSM
+            l2capPSM: localL2CAPPSM,
+            discoveryToken: Self.discoveryToken(for: channel)
         )
         return try? JSONEncoder().encode(presence)
     }
@@ -374,6 +376,8 @@ extension LocalWaveBluetoothTransport: CBPeripheralDelegate {
         guard error == nil,
               let data = characteristic.value,
               let presence = try? JSONDecoder().decode(PresenceAdvertisement.self, from: data),
+              let channel,
+              Self.acceptsDiscoveryToken(presence.discoveryToken, channel: channel),
               presence.peerId != identity?.peerId else {
             return
         }
@@ -391,6 +395,17 @@ extension LocalWaveBluetoothTransport: CBPeripheralDelegate {
             state: .available,
             publicKeyData: presence.agreementPublicKey
         )))
+    }
+
+    private static func discoveryToken(for channel: ChannelCode, date: Date = Date()) -> Data {
+        let epochWindow = Int(date.timeIntervalSince1970 / 300)
+        let input = Data("LocalWave.DiscoveryToken.v1|\(channel.normalized)|\(epochWindow)".utf8)
+        return Data(SHA256.hash(data: input)).prefix(16)
+    }
+
+    private static func acceptsDiscoveryToken(_ token: Data, channel: ChannelCode, date: Date = Date()) -> Bool {
+        discoveryToken(for: channel, date: date) == token ||
+            discoveryToken(for: channel, date: date.addingTimeInterval(-300)) == token
     }
 }
 
@@ -423,6 +438,7 @@ extension LocalWaveBluetoothTransport: CBPeripheralManagerDelegate {
             return
         }
         localL2CAPPSM = UInt16(PSM)
+        advertiseService()
     }
 
     public func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {

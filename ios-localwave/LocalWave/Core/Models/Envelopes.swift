@@ -29,6 +29,9 @@ public enum TransportCapability: String, Codable, Sendable, CaseIterable {
     case nativeSharePackage
     case fixedRelay
     case phoneRelayBestEffort
+    case objectCache
+    case relayCache
+    case fecPieces
 }
 
 public enum DeliveryRoute: String, Codable, Sendable, CaseIterable {
@@ -42,13 +45,25 @@ public enum DeliveryRoute: String, Codable, Sendable, CaseIterable {
 public enum TransferStatus: String, Codable, Sendable, CaseIterable {
     case queued
     case negotiating
+    case announced
+    case accepted
+    case manifestReceived
+    case sessionNegotiated
+    case transferring
     case sending
     case exported
     case importing
+    case waitingForPeer
+    case waitingForRelay
+    case verifying
+    case reconstructing
+    case decrypting
+    case completed
     case delivered
     case pending
     case failed
     case expired
+    case cancelled
 }
 
 public struct OutboundAttachment: Codable, Sendable, Equatable {
@@ -101,6 +116,10 @@ public struct EncryptedSharePackage: Codable, Sendable, Equatable {
     public var senderId: PeerID
     public var recipientId: PeerID
     public var envelope: AttachmentEnvelope
+    public var objectManifest: EncryptedObjectManifest? = nil
+    public var objectPieces: [ObjectPiece]? = nil
+    public var senderFingerprint: String? = nil
+    public var senderAgreementPublicKey: Data? = nil
 }
 
 public struct ImportedSharePackage: Sendable, Equatable {

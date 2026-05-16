@@ -44,7 +44,7 @@ fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit)
             scope.launch {
                 val packageUri = viewModel.exportSharePackage(context, uri) ?: return@launch
                 val share = Intent(Intent.ACTION_SEND)
-                    .setType("application/octet-stream")
+                    .setType("application/vnd.localwave.package")
                     .putExtra(Intent.EXTRA_STREAM, packageUri)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 context.startActivity(Intent.createChooser(share, "Share encrypted LocalWave package"))
@@ -73,7 +73,7 @@ fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit)
         AttachmentActions(
             sendDirect = { directAttachmentPicker.launch("*/*") },
             sharePackage = { sharePackagePicker.launch("*/*") },
-            importPackage = { importPackagePicker.launch(arrayOf("application/octet-stream", "*/*")) }
+            importPackage = { importPackagePicker.launch(arrayOf("application/vnd.localwave.package", "application/octet-stream", "*/*")) }
         )
         MessageComposer(state.draft, state.canSend, viewModel::updateDraft, viewModel::sendDraft)
     }

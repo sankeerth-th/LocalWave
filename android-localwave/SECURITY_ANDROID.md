@@ -32,6 +32,14 @@ Mitigations: Android Keystore-wrapped identity private material, no private keys
 
 Limitations: v1 local message text is stored plaintext in Room to match iOS local-history behavior.
 
+### Object Transfer
+
+Files are packaged as encrypted LocalWave objects before Bluetooth, cache, relay, or native share. The app stores encrypted manifests and encrypted pieces only in the object cache. Object keys are random 256-bit keys and are wrapped per recipient with the pairwise session-derived wrapping key.
+
+Receivers verify manifest commitment, encrypted-piece hashes, Merkle root, expiry, wrapped object key authentication, and final plaintext SHA-256 before marking a transfer complete. XOR parity recovery can restore one missing piece per stripe and is not a full Reed-Solomon replacement.
+
+Native `.localwavepkg` export through Android Sharesheet is a user-mediated transport. It does not prove delivery; completion requires local import verification or an in-app receipt.
+
 ### Android Backup And OEM Behavior
 
 Backup, device transfer, and OEM battery policies can affect confidentiality and reliability.
@@ -55,6 +63,7 @@ The manifest does not request `INTERNET`. The project does not include Firebase,
 - Permission copy says Bluetooth is required for nearby LocalWave users and notifications are optional for Wake alerts.
 - Frequency Code copy says logical Bluetooth channel, not real RF tuning.
 - Wake copy says local Bluetooth ping when reachable and never guarantees delivery.
+- File transfer copy must distinguish Direct/L2CAP, Relayed, and Native Share routes.
 - Diagnostics show engine mode, transport state, peer count, permission state, and redacted error categories only.
 - UI diagnostics must not show plaintext messages, private keys, shared secrets, raw decrypted envelopes, sensitive notification payloads, or private channel passwords.
 

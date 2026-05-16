@@ -14,12 +14,17 @@ import com.localwave.core.model.DeliveryRoute
 import com.localwave.core.model.EncryptedSharePackage
 import com.localwave.core.model.ImportedSharePackage
 import com.localwave.core.model.LocalIdentity
+import com.localwave.core.model.LocalWaveObjectPackage
 import com.localwave.core.model.MessageDirection
 import com.localwave.core.model.MessageId
 import com.localwave.core.model.MessageStatus
+import com.localwave.core.model.ObjectPiece
+import com.localwave.core.model.ObjectPieceBatch
 import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
+import com.localwave.core.model.PresenceState
+import com.localwave.core.model.EncryptedObjectManifest
 import com.localwave.core.model.TransferId
 import com.localwave.core.model.TransferRecord
 import com.localwave.core.model.TransferStatus
@@ -47,12 +52,15 @@ class RealLocalWaveEngine(
     private val peerRepository: PeerRepository,
     private val messageRepository: MessageRepository,
     private val transport: BluetoothTransport,
-    private val wakeNotificationManager: WakeNotificationManager
+    private val wakeNotificationManager: WakeNotificationManager,
+    private val objectStore: LocalWaveObjectFileStore? = null
 ) : LocalWaveEngine {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val peers = MutableStateFlow<List<PeerProfile>>(emptyList())
     private val transportState = MutableStateFlow(TransportState())
     private val transfers = MutableStateFlow<List<TransferRecord>>(emptyList())
+    private val objectTransfer = ObjectTransferCrypto(crypto)
+    private val incomingObjects = mutableMapOf<String, IncomingObjectState>()
     private val framer = BlePacketFramer()
     private val reassembler = PacketReassembler()
     private var channel: ChannelCode? = null
@@ -112,32 +120,46 @@ class RealLocalWaveEngine(
     override suspend fun sendAttachment(attachment: OutboundAttachment, to: PeerId): TransferId {
         val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
         val peer = peers.value.firstOrNull { it.id == to } ?: peerRepository.peer(to) ?: throw IllegalArgumentException("Peer unavailable.")
-        val envelope = crypto.encryptAttachment(attachment, peer, replayCounter++, activeChannel)
+        val identity = identityStore.loadOrCreateIdentity(displayName)
+        val packageFile = objectTransfer.createPackage(attachment, peer, identity, activeChannel)
+        objectStore?.store(packageFile)
+        val transferId = transferIdFor(packageFile.manifest.objectId)
         val transfer = TransferRecord(
-            id = envelope.transferId,
+            id = transferId,
             peerId = to,
             fileName = attachment.fileName,
             byteCount = attachment.data.size,
             route = DeliveryRoute.L2CAP,
-            status = TransferStatus.SENDING
+            status = TransferStatus.TRANSFERRING
         )
         upsertTransfer(transfer)
-        transport.sendBulk(ProtocolJson.encodeAttachmentEnvelope(envelope), to)
+        transport.send(ObjectTransferJson.encodeManifest(packageFile.manifest).toString().encodeToByteArray(), TransportPacketKind.OBJECT_MANIFEST, to)
+        packageFile.pieces.chunked(4).forEach { pieces ->
+            transport.sendBulk(ObjectTransferJson.encodePieceBatch(ObjectPieceBatch(objectId = packageFile.manifest.objectId, pieces = pieces)), to)
+        }
         upsertTransfer(transfer.copy(status = TransferStatus.PENDING, updatedAtEpochMillis = System.currentTimeMillis()))
-        return envelope.transferId
+        return transferId
     }
 
     override suspend fun exportEncryptedSharePackage(attachment: OutboundAttachment, to: PeerId): EncryptedSharePackage {
         val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
         val peer = peers.value.firstOrNull { it.id == to } ?: peerRepository.peer(to) ?: throw IllegalArgumentException("Peer unavailable.")
-        val envelope = crypto.encryptAttachment(attachment, peer, replayCounter++, activeChannel)
+        val identity = identityStore.loadOrCreateIdentity(displayName)
+        val objectPackage = objectTransfer.createPackage(attachment, peer, identity, activeChannel)
+        objectStore?.store(objectPackage)
+        val transferId = transferIdFor(objectPackage.manifest.objectId)
         val packageFile = EncryptedSharePackage(
-            packageId = envelope.transferId,
-            createdAtEpochMillis = envelope.timestampEpochMillis,
+            version = 2.toUByte(),
+            packageId = transferId,
+            createdAtEpochMillis = objectPackage.manifest.createdAtEpochMillis,
             route = DeliveryRoute.NATIVE_SHARE,
-            senderId = envelope.senderId,
-            recipientId = envelope.recipientId,
-            envelope = envelope
+            senderId = objectPackage.manifest.senderId,
+            recipientId = objectPackage.manifest.recipientId,
+            envelope = placeholderEnvelope(transferId, objectPackage.manifest),
+            objectManifest = objectPackage.manifest,
+            objectPieces = objectPackage.pieces,
+            senderFingerprint = identity.fingerprint,
+            senderAgreementPublicKey = identity.agreementPublicKey
         )
         upsertTransfer(
             TransferRecord(
@@ -154,7 +176,23 @@ class RealLocalWaveEngine(
 
     override suspend fun importEncryptedSharePackage(packageFile: EncryptedSharePackage): ImportedSharePackage {
         val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
-        require(packageFile.version == 1.toUByte()) { "Unsupported LocalWave package version." }
+        require(packageFile.version == 1.toUByte() || packageFile.version == 2.toUByte()) { "Unsupported LocalWave package version." }
+        if (packageFile.objectManifest != null && packageFile.objectPieces != null) {
+            objectStore?.store(LocalWaveObjectPackage(packageFile.objectManifest, packageFile.objectPieces))
+            val peer = peerForImportedObject(packageFile, packageFile.objectManifest)
+            val result = objectTransfer.decryptPackage(LocalWaveObjectPackage(packageFile.objectManifest, packageFile.objectPieces), peer, activeChannel)
+            upsertTransfer(
+                TransferRecord(
+                    id = packageFile.packageId,
+                    peerId = packageFile.senderId,
+                    fileName = result.attachment.fileName,
+                    byteCount = result.attachment.data.size,
+                    route = DeliveryRoute.NATIVE_SHARE,
+                    status = TransferStatus.COMPLETED
+                )
+            )
+            return ImportedSharePackage(packageFile.packageId, packageFile.senderId, result.attachment, result.receipt.verifiedPlainSha256)
+        }
         val peer = peers.value.firstOrNull { it.id == packageFile.senderId } ?: peerRepository.peer(packageFile.senderId) ?: throw IllegalArgumentException("Peer unavailable.")
         val attachment = crypto.decryptAttachment(packageFile.envelope, peer, activeChannel)
         val verifiedHash = MessageDigest.getInstance("SHA-256").digest(attachment.data)
@@ -165,7 +203,7 @@ class RealLocalWaveEngine(
                 fileName = attachment.fileName,
                 byteCount = attachment.data.size,
                 route = DeliveryRoute.NATIVE_SHARE,
-                status = TransferStatus.DELIVERED
+                status = TransferStatus.COMPLETED
             )
         )
         return ImportedSharePackage(packageFile.packageId, packageFile.senderId, attachment, verifiedHash)
@@ -223,12 +261,57 @@ class RealLocalWaveEngine(
                     transportState.value = transportState.value.copy(wakeFallback = WakeEvent(peer.id, peer.displayName))
                 }
             }
+            TransportPacketKind.OBJECT_MANIFEST -> {
+                val manifest = ObjectTransferJson.decodeManifest(JSONObject(assembled.body.decodeToString()))
+                incomingObjects.getOrPut(manifest.objectId) { IncomingObjectState() }.manifest = manifest
+                objectStore?.store(manifest)
+                upsertTransfer(
+                    TransferRecord(
+                        id = transferIdFor(manifest.objectId),
+                        peerId = manifest.senderId,
+                        fileName = "Encrypted object",
+                        byteCount = manifest.ciphertext.size,
+                        route = DeliveryRoute.L2CAP,
+                        status = TransferStatus.MANIFEST_RECEIVED
+                    )
+                )
+                tryCompleteObject(manifest.objectId)
+            }
+            TransportPacketKind.RECEIPT -> {
+                val receipt = ObjectTransferJson.decodeReceipt(assembled.body)
+                transfers.value = transfers.value.map {
+                    if (it.id == receipt.transferId) it.copy(status = TransferStatus.COMPLETED, updatedAtEpochMillis = System.currentTimeMillis()) else it
+                }
+            }
             TransportPacketKind.PRESENCE,
-            TransportPacketKind.RECEIPT -> Unit
+            TransportPacketKind.OBJECT_CONTROL -> Unit
         }
     }
 
     private suspend fun handleBulk(data: ByteArray) {
+        val batch = runCatching { ObjectTransferJson.decodePieceBatch(data) }.getOrNull()
+        if (batch != null) {
+            incomingObjects.getOrPut(batch.objectId) { IncomingObjectState() }.pieces.addAll(batch.pieces)
+            objectStore?.storePieces(batch.pieces)
+            incomingObjects[batch.objectId]?.manifest?.let { manifest ->
+                upsertTransfer(
+                    TransferRecord(
+                        id = transferIdFor(batch.objectId),
+                        peerId = manifest.senderId,
+                        fileName = "Encrypted object",
+                        byteCount = batch.pieces.sumOf { it.ciphertext.size },
+                        route = DeliveryRoute.L2CAP,
+                        status = TransferStatus.TRANSFERRING
+                    )
+                )
+            }
+            tryCompleteObject(batch.objectId)
+            return
+        }
+        handleLegacyBulk(data)
+    }
+
+    private suspend fun handleLegacyBulk(data: ByteArray) {
         val activeChannel = channel ?: return
         val envelope = ProtocolJson.decodeAttachmentEnvelope(data)
         val peer = peers.value.firstOrNull { it.id == envelope.senderId } ?: peerRepository.peer(envelope.senderId) ?: return
@@ -240,15 +323,82 @@ class RealLocalWaveEngine(
                 fileName = attachment.fileName,
                 byteCount = attachment.data.size,
                 route = DeliveryRoute.L2CAP,
-                status = TransferStatus.DELIVERED
+                status = TransferStatus.COMPLETED
             )
         )
+    }
+
+    private suspend fun tryCompleteObject(objectId: String) {
+        val activeChannel = channel ?: return
+        val storedPackage = objectStore?.packageFor(objectId)
+        val state = incomingObjects[objectId]
+        val manifest = state?.manifest ?: storedPackage?.manifest ?: return
+        val pieces = state?.pieces ?: storedPackage?.pieces ?: emptyList()
+        runCatching {
+            val peer = peerForImportedObject(null, manifest)
+            val result = objectTransfer.decryptPackage(LocalWaveObjectPackage(manifest, pieces), peer, activeChannel)
+            upsertTransfer(
+                TransferRecord(
+                    id = result.transferId,
+                    peerId = peer.id,
+                    fileName = result.attachment.fileName,
+                    byteCount = result.attachment.data.size,
+                    route = DeliveryRoute.L2CAP,
+                    status = TransferStatus.COMPLETED
+                )
+            )
+            incomingObjects.remove(objectId)
+            transport.send(ObjectTransferJson.encodeReceipt(result.receipt), TransportPacketKind.RECEIPT, peer.id)
+        }.onFailure {
+            incomingObjects[objectId]?.lastError = it.message
+        }
+    }
+
+    private suspend fun peerForImportedObject(packageFile: EncryptedSharePackage?, manifest: EncryptedObjectManifest): PeerProfile {
+        val existing = peers.value.firstOrNull { it.id == manifest.senderId } ?: peerRepository.peer(manifest.senderId)
+        if (existing != null) return existing
+        val peer = PeerProfile(
+            id = manifest.senderId,
+            displayName = "Imported Peer",
+            fingerprint = packageFile?.senderFingerprint ?: manifest.senderFingerprint,
+            rssi = 0,
+            lastSeenEpochMillis = System.currentTimeMillis(),
+            state = PresenceState.RECENTLY_SEEN,
+            trustState = com.localwave.core.model.PeerTrustState.UNVERIFIED,
+            publicKeyData = packageFile?.senderAgreementPublicKey ?: manifest.senderAgreementPublicKey
+        )
+        peerRepository.upsert(peer)
+        peers.value = (peers.value + peer).distinctBy { it.id }
+        return peer
     }
 
     private fun upsertTransfer(record: TransferRecord) {
         transfers.value = transfers.value.filterNot { it.id == record.id } + record
     }
+
+    private fun transferIdFor(objectId: String): TransferId =
+        UUID.fromString(objectId.take(32).padEnd(32, '0').uuidFormat())
+
+    private fun placeholderEnvelope(transferId: TransferId, manifest: EncryptedObjectManifest): AttachmentEnvelope =
+        AttachmentEnvelope(
+            senderId = manifest.senderId,
+            recipientId = manifest.recipientId,
+            timestampEpochMillis = manifest.createdAtEpochMillis,
+            transferId = transferId,
+            replayCounter = 0uL,
+            nonce = ByteArray(0),
+            ciphertext = ByteArray(0),
+            tag = ByteArray(0)
+        )
 }
+
+private data class IncomingObjectState(
+    var manifest: EncryptedObjectManifest? = null,
+    val pieces: MutableList<ObjectPiece> = mutableListOf(),
+    var lastError: String? = null
+)
+
+private fun String.uuidFormat(): String = "${substring(0, 8)}-${substring(8, 12)}-${substring(12, 16)}-${substring(16, 20)}-${substring(20, 32)}"
 
 object ProtocolJson {
     fun encodeMessageEnvelope(envelope: com.localwave.core.model.MessageEnvelope): ByteArray =
@@ -362,10 +512,16 @@ object ProtocolJson {
             .put("version", packageFile.version.toInt())
             .put("packageId", packageFile.packageId.toString().uppercase())
             .put("createdAt", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(packageFile.createdAtEpochMillis)))
-            .put("route", packageFile.route.name)
+            .put("route", packageFile.route.wireName())
             .put("senderId", packageFile.senderId.value)
             .put("recipientId", packageFile.recipientId.value)
             .put("envelope", JSONObject(encodeAttachmentEnvelope(packageFile.envelope).decodeToString()))
+            .also { json ->
+                packageFile.objectManifest?.let { json.put("objectManifest", ObjectTransferJson.encodeManifest(it)) }
+                packageFile.objectPieces?.let { pieces -> json.put("objectPieces", org.json.JSONArray(pieces.map(ObjectTransferJson::encodePiece))) }
+                packageFile.senderFingerprint?.let { json.put("senderFingerprint", it) }
+                packageFile.senderAgreementPublicKey?.let { json.put("senderAgreementPublicKey", Base64.getEncoder().encodeToString(it)) }
+            }
             .toString()
             .encodeToByteArray()
 
@@ -375,10 +531,33 @@ object ProtocolJson {
                 version = json.getInt("version").toUByte(),
                 packageId = UUID.fromString(json.getString("packageId")),
                 createdAtEpochMillis = Instant.parse(json.getString("createdAt")).toEpochMilli(),
-                route = DeliveryRoute.valueOf(json.getString("route")),
+                route = deliveryRouteFromWire(json.getString("route")),
                 senderId = PeerId(json.getString("senderId")),
                 recipientId = PeerId(json.getString("recipientId")),
-                envelope = decodeAttachmentEnvelope(json.getJSONObject("envelope").toString().encodeToByteArray())
+                envelope = decodeAttachmentEnvelope(json.getJSONObject("envelope").toString().encodeToByteArray()),
+                objectManifest = json.optJSONObject("objectManifest")?.let(ObjectTransferJson::decodeManifest),
+                objectPieces = json.optJSONArray("objectPieces")?.let { array ->
+                    (0 until array.length()).map { ObjectTransferJson.decodePiece(array.getJSONObject(it)) }
+                },
+                senderFingerprint = json.optString("senderFingerprint").takeIf { it.isNotBlank() },
+                senderAgreementPublicKey = json.optString("senderAgreementPublicKey").takeIf { it.isNotBlank() }?.let { Base64.getDecoder().decode(it) }
             )
         }
+}
+
+private fun DeliveryRoute.wireName(): String = when (this) {
+    DeliveryRoute.GATT -> "gatt"
+    DeliveryRoute.L2CAP -> "l2cap"
+    DeliveryRoute.NATIVE_SHARE -> "nativeShare"
+    DeliveryRoute.FIXED_RELAY -> "fixedRelay"
+    DeliveryRoute.PHONE_RELAY -> "phoneRelay"
+}
+
+private fun deliveryRouteFromWire(value: String): DeliveryRoute = when (value) {
+    "gatt", "GATT" -> DeliveryRoute.GATT
+    "l2cap", "L2CAP" -> DeliveryRoute.L2CAP
+    "nativeShare", "NATIVE_SHARE" -> DeliveryRoute.NATIVE_SHARE
+    "fixedRelay", "FIXED_RELAY" -> DeliveryRoute.FIXED_RELAY
+    "phoneRelay", "PHONE_RELAY" -> DeliveryRoute.PHONE_RELAY
+    else -> DeliveryRoute.valueOf(value)
 }

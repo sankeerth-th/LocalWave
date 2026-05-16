@@ -26,10 +26,12 @@ Private channels require an invite phrase before production release. The current
 
 A standards-grade PAKE remains the production cryptography target when an audited dependency is approved. Do not describe the current HMAC proof as SPAKE2, OPAQUE, or a full PAKE:
 
-1. Both peers derive a channel discovery context from `Frequency Code + invite phrase`.
+1. Production discovery should derive a channel discovery context from `Frequency Code + invite phrase`.
 2. Peers prove possession of the invite phrase before accepting long-term identity keys.
 3. The authenticated transcript pins the identity fingerprint.
 4. Weak or missing invite phrases must not be represented as a strong privacy guarantee.
+
+Current app discovery tokens are rotating and channel-derived. Binding discovery tokens to a stored invite phrase is still part of the PAKE/design-gate work and must not be represented as completed private discovery.
 
 ## Identity And Trust
 
@@ -60,6 +62,12 @@ Capabilities are exchanged only after encrypted trust bootstrap. Current cross-p
 
 Capability messages must include protocol version, sender identity, supported envelope versions, maximum GATT payload, preferred attachment chunk size, route preferences, and relay policy.
 
+Current implemented capability values also include:
+
+- `objectCache`
+- `relayCache`
+- `fecPieces`
+
 ## Encrypted Envelopes
 
 All message, wake, and attachment payloads are encrypted above Bluetooth. The current AEAD envelope fields are:
@@ -77,7 +85,35 @@ All message, wake, and attachment payloads are encrypted above Bluetooth. The cu
 
 AEAD associated data covers version, kind, sender, recipient, message or transfer id, timestamp, replay counter, and normalized channel code. Receivers reject wrong sender, wrong recipient, failed authentication, duplicate replay counters, and malformed payloads.
 
-## Attachment Packages
+## Secure Swarm Object Transport v1
+
+Attachments are now represented as LocalWave Objects instead of a single whole-file attachment envelope on the primary path.
+
+Object payloads:
+
+- `EncryptedObjectManifest`: encrypted metadata, wrapped per-recipient object key, sender fingerprint, sender public identity material, expiry, and object commitment.
+- `ObjectPiece`: independently encrypted data or recovery piece with nonce, AEAD tag, encrypted-piece hash, and Merkle commitment coverage.
+- `ObjectPieceBatch`: length-framed L2CAP payload containing a small batch of pieces.
+- `PieceInventory`: compact source availability for swarm scheduling.
+- `ResumeToken`: receiver-side verified-piece checkpoint for reconnect/resume.
+- `RelayToken`: bounded authorization metadata for opaque relay cache.
+- `TransferReceipt`: final receiver verification receipt. Sender must not mark completed before this receipt.
+
+Creation order:
+
+1. Generate a random 256-bit object key.
+2. Split plaintext into 32 KiB data pieces.
+3. Create XOR recovery pieces by stripe.
+4. Encrypt manifest metadata and every piece before transport or cache.
+5. Compute `objectId = SHA256(encrypted manifest commitment)`.
+6. Cache encrypted manifest and encrypted pieces under app-private storage.
+7. Send manifest over GATT control and piece batches over L2CAP when available.
+
+Recovery v1 is conservative XOR parity: one recovery piece per 10-piece stripe can recover one missing data piece in that stripe. It is not Reed-Solomon and must not be described as general erasure coding.
+
+Native share packages are version 2 `.localwavepkg` files containing the encrypted manifest and encrypted pieces. Import can create an unverified peer record from the package identity material when the sender is not currently nearby, but changed or verified fingerprint policy still controls trust.
+
+## Legacy Attachment Envelopes
 
 Attachment plaintext before encryption:
 
@@ -91,7 +127,8 @@ Native share package:
 
 - File extension: `.localwavepkg`
 - Versioned container with route `nativeShare`.
-- Contains the encrypted attachment envelope and package metadata.
+- Version 1 contains the legacy encrypted attachment envelope and package metadata.
+- Version 2 contains the encrypted object manifest and encrypted object pieces.
 - Import verifies package version, decrypts locally, validates the payload hash, records provenance, and does not trust the system share path as proof of delivery.
 
 Size defaults:
@@ -114,13 +151,25 @@ Transfer states:
 
 - `queued`
 - `negotiating`
+- `announced`
+- `accepted`
+- `manifestReceived`
+- `sessionNegotiated`
+- `transferring`
 - `sending`
 - `exported`
 - `importing`
+- `waitingForPeer`
+- `waitingForRelay`
+- `verifying`
+- `reconstructing`
+- `decrypting`
+- `completed`
 - `delivered`
 - `pending`
 - `failed`
 - `expired`
+- `cancelled`
 
 The UI must never mark native share export as delivered. Export means the encrypted package was produced for the user-mediated share lane. Delivered requires an in-app receipt or successful local import by the recipient.
 

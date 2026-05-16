@@ -8,6 +8,8 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     private let messageRepository: MessageRepositoryProtocol
     private let notificationService: LocalNotificationServicing
     private let transport: BluetoothTransportProtocol
+    private let objectTransfer: ObjectTransferCrypto
+    private let objectStore: LocalWaveObjectStore
     private let discovery = PeerDiscoveryEngine()
     private let framer = BLEPacketFramer()
     private let reassembler = BLEPacketReassembler()
@@ -21,6 +23,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     private var messageContinuations: [PeerID: [AsyncStream<[ChatMessage]>.Continuation]] = [:]
     private var transferContinuations: [AsyncStream<[TransferRecord]>.Continuation] = []
     private var transfers: [TransferRecord] = []
+    private var incomingObjects: [String: IncomingObjectState] = [:]
     private var replayCounter: UInt64 = 1
     private var eventTask: Task<Void, Never>?
 
@@ -29,14 +32,17 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         peerRepository: PeerRepositoryProtocol = JSONPeerRepository(),
         messageRepository: MessageRepositoryProtocol = JSONMessageRepository(),
         notificationService: LocalNotificationServicing = LocalNotificationService(),
-        transport: BluetoothTransportProtocol = LocalWaveBluetoothTransport()
+        transport: BluetoothTransportProtocol = LocalWaveBluetoothTransport(),
+        objectStore: LocalWaveObjectStore = LocalWaveObjectStore()
     ) {
         self.identityStore = identityStore
         self.crypto = SessionCrypto(identityStore: identityStore)
+        self.objectTransfer = ObjectTransferCrypto(sessionCrypto: self.crypto)
         self.peerRepository = peerRepository
         self.messageRepository = messageRepository
         self.notificationService = notificationService
         self.transport = transport
+        self.objectStore = objectStore
     }
 
     public func start(channel: ChannelCode, displayName: String) async throws {
@@ -99,22 +105,28 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     public func sendAttachment(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> TransferID {
         guard let channel else { throw LocalWaveError.invalidChannelCode }
         let peer = try await resolvePeer(peerId)
-        let envelope = try await crypto.encryptAttachment(attachment, to: peer, counter: nextCounter(), channel: channel)
-        let body = try SecureEnvelopeCodec.encode(envelope)
+        let identity = try await identityStore.loadOrCreateIdentity(displayName: displayName)
+        let objectPackage = try await objectTransfer.createPackage(attachment: attachment, to: peer, localIdentity: identity, channel: channel)
+        try await objectStore.store(objectPackage)
+        let transferId = Self.transferId(for: objectPackage.manifest.objectId)
         let transfer = TransferRecord(
-            id: envelope.transferId,
+            id: transferId,
             peerId: peerId,
             fileName: attachment.fileName,
             byteCount: attachment.data.count,
             route: .l2cap,
-            status: .sending,
+            status: .transferring,
             updatedAt: Date(),
             failureReason: nil
         )
         upsertTransfer(transfer)
-        try await transport.sendBulk(body, to: peerId)
+        try await transport.send(try ObjectTransferCodec.encode(objectPackage.manifest), kind: .objectManifest, to: peerId)
+        for pieces in objectPackage.pieces.chunked(size: 4) {
+            let batch = ObjectPieceBatch(objectProtocolVersion: 1, objectId: objectPackage.manifest.objectId, pieces: pieces)
+            try await transport.sendBulk(try ObjectTransferCodec.encode(batch), to: peerId)
+        }
         upsertTransfer(TransferRecord(
-            id: envelope.transferId,
+            id: transferId,
             peerId: peerId,
             fileName: attachment.fileName,
             byteCount: attachment.data.count,
@@ -123,21 +135,28 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
             updatedAt: Date(),
             failureReason: nil
         ))
-        return envelope.transferId
+        return transferId
     }
 
     public func exportEncryptedSharePackage(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> EncryptedSharePackage {
         guard let channel else { throw LocalWaveError.invalidChannelCode }
         let peer = try await resolvePeer(peerId)
-        let envelope = try await crypto.encryptAttachment(attachment, to: peer, counter: nextCounter(), channel: channel)
+        let identity = try await identityStore.loadOrCreateIdentity(displayName: displayName)
+        let objectPackage = try await objectTransfer.createPackage(attachment: attachment, to: peer, localIdentity: identity, channel: channel)
+        try await objectStore.store(objectPackage)
+        let transferId = Self.transferId(for: objectPackage.manifest.objectId)
         let package = EncryptedSharePackage(
-            version: 1,
-            packageId: envelope.transferId,
-            createdAt: envelope.timestamp,
+            version: 2,
+            packageId: transferId,
+            createdAt: Date(timeIntervalSince1970: TimeInterval(objectPackage.manifest.createdAtEpochMillis) / 1_000),
             route: .nativeShare,
-            senderId: envelope.senderId,
-            recipientId: envelope.recipientId,
-            envelope: envelope
+            senderId: objectPackage.manifest.senderId,
+            recipientId: objectPackage.manifest.recipientId,
+            envelope: Self.placeholderEnvelope(transferId: transferId, manifest: objectPackage.manifest),
+            objectManifest: objectPackage.manifest,
+            objectPieces: objectPackage.pieces,
+            senderFingerprint: identity.fingerprint,
+            senderAgreementPublicKey: identity.agreementPublicKey
         )
         upsertTransfer(TransferRecord(
             id: package.packageId,
@@ -153,8 +172,24 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     }
 
     public func importEncryptedSharePackage(_ package: EncryptedSharePackage) async throws -> ImportedSharePackage {
-        guard package.version == 1 else { throw LocalWaveError.unsupportedPackage }
+        guard package.version == 1 || package.version == 2 else { throw LocalWaveError.unsupportedPackage }
         guard let channel else { throw LocalWaveError.invalidChannelCode }
+        if let manifest = package.objectManifest, let pieces = package.objectPieces {
+            try await objectStore.store(LocalWaveObjectPackage(manifest: manifest, pieces: pieces))
+            let sender = try await peerForImportedObject(package: package, manifest: manifest)
+            let result = try await objectTransfer.decryptPackage(LocalWaveObjectPackage(manifest: manifest, pieces: pieces), from: sender, channel: channel)
+            upsertTransfer(TransferRecord(
+                id: package.packageId,
+                peerId: package.senderId,
+                fileName: result.attachment.fileName,
+                byteCount: result.attachment.data.count,
+                route: .nativeShare,
+                status: .completed,
+                updatedAt: Date(),
+                failureReason: nil
+            ))
+            return ImportedSharePackage(transferId: package.packageId, senderId: package.senderId, attachment: result.attachment, verifiedHash: result.receipt.verifiedPlainSHA256)
+        }
         let sender = try await resolvePeer(package.senderId)
         let attachment = try await crypto.decryptAttachment(package.envelope, from: sender, channel: channel)
         let verifiedHash = Data(SHA256.hash(data: attachment.data))
@@ -164,7 +199,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
             fileName: attachment.fileName,
             byteCount: attachment.data.count,
             route: .nativeShare,
-            status: .delivered,
+            status: .completed,
             updatedAt: Date(),
             failureReason: nil
         ))
@@ -245,6 +280,29 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     }
 
     private func handleBulkData(_ data: Data) async {
+        if let batch = try? ObjectTransferCodec.decode(ObjectPieceBatch.self, from: data) {
+            incomingObjects[batch.objectId, default: IncomingObjectState()].pieces.append(contentsOf: batch.pieces)
+            try? await objectStore.store(batch.pieces)
+            if let manifest = incomingObjects[batch.objectId]?.manifest {
+                upsertTransfer(TransferRecord(
+                    id: Self.transferId(for: batch.objectId),
+                    peerId: manifest.senderId,
+                    fileName: "Encrypted object",
+                    byteCount: batch.pieces.reduce(0) { $0 + $1.ciphertext.count },
+                    route: .l2cap,
+                    status: .transferring,
+                    updatedAt: Date(),
+                    failureReason: nil
+                ))
+            }
+            await tryCompleteObject(batch.objectId)
+            return
+        }
+
+        await handleLegacyBulkData(data)
+    }
+
+    private func handleLegacyBulkData(_ data: Data) async {
         guard let channel else { return }
         do {
             let envelope = try SecureEnvelopeCodec.decode(AttachmentEnvelope.self, from: data)
@@ -256,7 +314,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
                 fileName: attachment.fileName,
                 byteCount: attachment.data.count,
                 route: .l2cap,
-                status: .delivered,
+                status: .completed,
                 updatedAt: Date(),
                 failureReason: nil
             ))
@@ -298,7 +356,29 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
                 guard let sender else { return }
                 try await crypto.decryptWake(envelope, from: sender, channel: channel)
                 await notificationService.notifyWake(from: sender.displayName, channel: channel)
-            case .presence, .receipt:
+            case .objectManifest:
+                let manifest = try ObjectTransferCodec.decode(EncryptedObjectManifest.self, from: assembled.body)
+                incomingObjects[manifest.objectId, default: IncomingObjectState()].manifest = manifest
+                try? await objectStore.store(manifest)
+                upsertTransfer(TransferRecord(
+                    id: Self.transferId(for: manifest.objectId),
+                    peerId: manifest.senderId,
+                    fileName: "Encrypted object",
+                    byteCount: manifest.ciphertext.count,
+                    route: .l2cap,
+                    status: .manifestReceived,
+                    updatedAt: Date(),
+                    failureReason: nil
+                ))
+                await tryCompleteObject(manifest.objectId)
+            case .receipt:
+                let receipt = try ObjectTransferCodec.decode(TransferReceipt.self, from: assembled.body)
+                if let index = transfers.firstIndex(where: { $0.id == receipt.transferId }) {
+                    transfers[index].status = .completed
+                    transfers[index].updatedAt = Date()
+                    publishTransfers()
+                }
+            case .presence, .objectControl:
                 break
             }
         } catch {
@@ -318,6 +398,59 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         guard let peer = knownPeer ?? storedPeer else {
             throw LocalWaveError.peerUnavailable
         }
+        return peer
+    }
+
+    private func tryCompleteObject(_ objectId: String) async {
+        guard let channel else { return }
+        let storedPackage = try? await objectStore.package(objectId: objectId)
+        let state = incomingObjects[objectId]
+        guard let manifest = state?.manifest ?? storedPackage?.manifest else { return }
+        let pieces = state?.pieces ?? storedPackage?.pieces ?? []
+        do {
+            let sender = try await peerForImportedObject(package: nil, manifest: manifest)
+            let result = try await objectTransfer.decryptPackage(LocalWaveObjectPackage(manifest: manifest, pieces: pieces), from: sender, channel: channel)
+            upsertTransfer(TransferRecord(
+                id: result.transferId,
+                peerId: sender.id,
+                fileName: result.attachment.fileName,
+                byteCount: result.attachment.data.count,
+                route: .l2cap,
+                status: .completed,
+                updatedAt: Date(),
+                failureReason: nil
+            ))
+            incomingObjects[objectId] = nil
+            if let receiptData = try? ObjectTransferCodec.encode(result.receipt) {
+                try? await transport.send(receiptData, kind: .receipt, to: sender.id)
+            }
+        } catch {
+            var current = incomingObjects[objectId] ?? IncomingObjectState()
+            current.lastError = error.localizedDescription
+            incomingObjects[objectId] = current
+        }
+    }
+
+    private func peerForImportedObject(package: EncryptedSharePackage?, manifest: EncryptedObjectManifest) async throws -> PeerProfile {
+        if let known = peers.first(where: { $0.id == manifest.senderId }) {
+            return known
+        }
+        if let stored = try await peerRepository.peer(id: manifest.senderId) {
+            return stored
+        }
+        let peer = PeerProfile(
+            id: manifest.senderId,
+            displayName: "Imported Peer",
+            fingerprint: package?.senderFingerprint ?? manifest.senderFingerprint,
+            rssi: 0,
+            lastSeen: Date(),
+            state: .recentlySeen,
+            trustState: .unverified,
+            publicKeyData: package?.senderAgreementPublicKey ?? manifest.senderAgreementPublicKey
+        )
+        try await peerRepository.upsert(peer)
+        peers.append(peer)
+        publishPeers()
         return peer
     }
 
@@ -354,5 +487,42 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         for continuation in continuations {
             continuation.yield(messages)
         }
+    }
+
+    private static func transferId(for objectId: String) -> TransferID {
+        UUID(uuidString: String(objectId.prefix(32)).uuidFormattedFromHex) ?? UUID()
+    }
+
+    private static func placeholderEnvelope(transferId: TransferID, manifest: EncryptedObjectManifest) -> AttachmentEnvelope {
+        AttachmentEnvelope(
+            version: 1,
+            senderId: manifest.senderId,
+            recipientId: manifest.recipientId,
+            timestamp: Date(timeIntervalSince1970: TimeInterval(manifest.createdAtEpochMillis) / 1_000),
+            transferId: transferId,
+            replayCounter: 0,
+            nonce: Data(),
+            ciphertext: Data(),
+            tag: Data()
+        )
+    }
+}
+
+private struct IncomingObjectState {
+    var manifest: EncryptedObjectManifest?
+    var pieces: [ObjectPiece] = []
+    var lastError: String?
+}
+
+private extension Array {
+    func chunked(size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map { Array(self[$0..<Swift.min($0 + size, count)]) }
+    }
+}
+
+private extension String {
+    var uuidFormattedFromHex: String {
+        let padded = padding(toLength: 32, withPad: "0", startingAt: 0)
+        return "\(padded.prefix(8))-\(padded.dropFirst(8).prefix(4))-\(padded.dropFirst(12).prefix(4))-\(padded.dropFirst(16).prefix(4))-\(padded.dropFirst(20).prefix(12))"
     }
 }

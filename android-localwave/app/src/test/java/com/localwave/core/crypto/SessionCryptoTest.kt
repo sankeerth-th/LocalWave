@@ -8,6 +8,10 @@ import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
 import com.localwave.core.model.RelayChunk
 import com.localwave.core.model.RelayChunkStore
+import com.localwave.core.model.LocalWaveObjectPackage
+import com.localwave.core.model.ObjectPieceKind
+import com.localwave.core.protocol.ObjectTransferCrypto
+import com.localwave.core.protocol.ObjectTransferJson
 import com.localwave.core.protocol.ProtocolJson
 import java.util.UUID
 import kotlinx.coroutines.test.runTest
@@ -112,6 +116,42 @@ class SessionCryptoTest {
         assertEquals(packageFile.packageId, decoded.packageId)
         assertEquals(packageFile.route, decoded.route)
         assertEquals(packageFile.envelope.transferId, decoded.envelope.transferId)
+    }
+
+    @Test
+    fun objectPackageDecryptsAfterJsonRoundTrip() = runTest {
+        val aliceCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.alice))
+        val bobCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.bob))
+        val senderObjectCrypto = ObjectTransferCrypto(aliceCrypto)
+        val receiverObjectCrypto = ObjectTransferCrypto(bobCrypto)
+        val channel = ChannelCode("DOCK-A-17")
+        val attachment = OutboundAttachment("inventory.pdf", "application/pdf", ByteArray(128 * 1024) { 0x42 })
+
+        val packageFile = senderObjectCrypto.createPackage(attachment, TestIdentities.bobPeer, TestIdentities.alice.identity, channel)
+        val decoded = ObjectTransferJson.decodePackage(ObjectTransferJson.encodePackage(packageFile))
+        val result = receiverObjectCrypto.decryptPackage(decoded, TestIdentities.alicePeer, channel)
+
+        assertEquals(attachment.fileName, result.attachment.fileName)
+        assertEquals(attachment.data.size, result.attachment.data.size)
+        assertEquals(packageFile.manifest.objectId, result.receipt.objectId)
+    }
+
+    @Test
+    fun objectPackageRecoversOneMissingPieceWithParity() = runTest {
+        val aliceCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.alice))
+        val bobCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.bob))
+        val senderObjectCrypto = ObjectTransferCrypto(aliceCrypto)
+        val receiverObjectCrypto = ObjectTransferCrypto(bobCrypto)
+        val channel = ChannelCode("DOCK-A-17")
+        val attachment = OutboundAttachment("short-video.mp4", "video/mp4", ByteArray(1_200_000) { 0x7A })
+        val packageFile = senderObjectCrypto.createPackage(attachment, TestIdentities.bobPeer, TestIdentities.alice.identity, channel)
+
+        assertEquals(true, packageFile.pieces.any { it.pieceKind == ObjectPieceKind.RECOVERY })
+        val missingOne = packageFile.pieces.filterNot { it.pieceKind == ObjectPieceKind.DATA && it.pieceIndex == 3 }
+        val result = receiverObjectCrypto.decryptPackage(LocalWaveObjectPackage(packageFile.manifest, missingOne), TestIdentities.alicePeer, channel)
+
+        assertEquals(attachment.data.size, result.attachment.data.size)
+        assertEquals(attachment.data.last(), result.attachment.data.last())
     }
 
     @Test

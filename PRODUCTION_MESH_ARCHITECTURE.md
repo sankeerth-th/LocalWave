@@ -4,6 +4,8 @@
 
 LocalWave has native iOS and Android apps with local identity keys, deterministic Frequency Code GATT UUIDs, BLE discovery, encrypted envelopes, local persistence, wake notifications, and app UIs. The current transport is direct peer-to-peer BLE: a device advertises, scans, connects to a reachable peer, reads presence, and writes encrypted packets to that peer.
 
+This branch adds LW-SSOT v1 primitives: encrypted object manifests, encrypted object pieces, 32 KiB piece sizing, L2CAP piece batches, `.localwavepkg` v2 export/import, app-private encrypted object caches, transfer receipts, relay-cache primitives, piece-inventory models, resume-token models, and XOR parity recovery. Physical iPhone/Android interop still has to be validated on real devices.
+
 That is not yet a range-expanding mesh. A direct BLE app can show nearby devices, but it cannot deliver to an out-of-range peer unless the protocol, storage, trust model, routing, duplicate suppression, and UI states all understand relay delivery.
 
 ## Product Truths
@@ -37,8 +39,11 @@ Add protocol-level packet types beyond the current message/wake/receipt primitiv
 - `receipt`: end-to-end encrypted delivery/read state where enabled.
 - `relayOffer`: compact list of destination IDs this device has pending packets for.
 - `relayPacket`: opaque encrypted payload forwarded for another destination.
-- `attachmentManifest`: encrypted metadata for media/sticker payload transfer.
-- `attachmentChunk`: encrypted fixed-size chunk with hash validation.
+- `objectManifest`: encrypted metadata, wrapped object key, recipient policy, expiry, and sender identity commitment.
+- `objectPieceBatch`: encrypted fixed-size data and recovery pieces sent over L2CAP.
+- `pieceInventory`: compact piece availability for swarm scheduling.
+- `resumeToken`: receiver checkpoint used to skip verified pieces after reconnect.
+- `relayToken`: bounded relay authorization for opaque encrypted pieces.
 
 ### Routing Rules
 
@@ -112,19 +117,26 @@ Wake should use the same delivery stack as messages:
 - receiver schedules a local notification only after decrypting and replay-validating the wake envelope;
 - if notification permission is missing, expose an in-app wake event.
 
-## Media And Stickers
+## Secure Object Transfer
+
+Attachments should use the secure object protocol, not base64 text messages or single-envelope whole-file transfer.
+
+- Encrypt attachment manifest metadata and pieces before Bluetooth/native share.
+- Hash every encrypted piece and the final plaintext payload.
+- Store encrypted object packages locally under app-private storage.
+- Use L2CAP piece batches for in-app transfer.
+- Use `.localwavepkg` v2 for native user-mediated share.
+- Keep GATT for manifest/control/receipts, not bulk media.
+- Expire undelivered objects and relay chunks.
+- Use XOR parity v1 only as one-missing-piece-per-stripe recovery.
 
 ### Images And Video
 
-Attachments should be a separate encrypted transfer protocol, not base64 text messages.
-
-- Limit v1 image size and transcode/compress locally.
+- Limit v1 image size and transcode/compress locally where useful.
 - Limit v1 video duration/size aggressively.
-- Encrypt attachment manifest and chunks.
-- Hash every chunk and the whole file.
-- Store encrypted attachment blobs locally.
-- Transfer thumbnails first, then full media on tap or when connected long enough.
-- Expire undelivered attachment chunks.
+- Transfer thumbnails first when a thumbnail policy is added.
+- For files over 25 MB, require foreground transfer and honest warning.
+- For 100 MB and above, default to encrypted native share unless an advanced mode is enabled.
 
 ### Stickers
 

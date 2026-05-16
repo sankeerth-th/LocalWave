@@ -22,6 +22,10 @@ Covered behaviors:
 - Peer list updates
 - Message send moves through pending/sent
 - Wake unavailable state is surfaced
+- Object package encrypt/decrypt round trip
+- Encrypted object package JSON round trip
+- XOR recovery restores one missing piece in a stripe
+- Relay cache stores opaque encrypted payloads only
 
 View-model coverage:
 - Onboarding validates display name and Frequency Code before completion
@@ -62,6 +66,30 @@ Expected: peer lists clear after the channel switch and the devices no longer di
 
 Expected: Device A shows pending then sent/delivered when receipt is available. Device B receives the message in chat. No plaintext message appears in device logs.
 
+### Encrypted File Package Export And Import
+
+1. Put Device A and Device B on the same Frequency Code.
+2. From Device A chat, choose Share Package and select a small image or document.
+3. Share the produced `.localwavepkg` to Device B through AirDrop, Files, or another system share target.
+4. On Device B, use Import and select the `.localwavepkg`.
+
+Expected: Device B decrypts locally, verifies the object manifest, encrypted piece hashes, Merkle root, and final payload hash, then records the import as completed. Device A only records export unless it later receives an in-app receipt.
+
+### L2CAP Object Transfer
+
+1. Put Device A and Device B on the same Frequency Code.
+2. Keep both apps foregrounded.
+3. Send 100 KB, 1 MB, 10 MB, and 25 MB files through Send File.
+
+Expected: GATT carries only the manifest/control traffic. L2CAP carries object piece batches. Transfer remains pending/transferring until the receiver verifies the object and sends a receipt.
+
+### Recovery Piece Behavior
+
+1. Use a test build or controlled unit test to drop one data piece in a 10-piece stripe.
+2. Keep the matching XOR recovery piece.
+
+Expected: receiver reconstructs the one missing piece and completes only after final plaintext SHA-256 verification. Dropping two pieces in the same stripe must fail.
+
 ### Wake Behavior
 
 1. Allow notifications on Device A.
@@ -88,3 +116,5 @@ Expected: identity fingerprint is unchanged.
 ## Background Notes
 
 iOS may throttle or defer BLE work in the background. Test Wake and delivery with the app foregrounded, recently backgrounded, locked, and after a longer idle period. Document observed device/iOS behavior for the deployment environment.
+
+Android/iOS L2CAP interoperability cannot be proven in Simulator or the Android emulator. It requires physical devices because emulator Bluetooth stacks do not expose the same BLE central/peripheral/L2CAP behavior.

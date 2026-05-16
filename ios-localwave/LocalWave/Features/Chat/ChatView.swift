@@ -2,6 +2,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
+private extension UTType {
+    static let localWavePackage = UTType(filenameExtension: EncryptedSharePackage.fileExtension) ?? .data
+}
+
 struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @Environment(\.dismiss) private var dismiss
@@ -68,7 +72,7 @@ struct ChatView: View {
                 Task { await viewModel.exportEncryptedSharePackage(from: url) }
             }
         }
-        .fileImporter(isPresented: $showingPackageImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $showingPackageImporter, allowedContentTypes: [.localWavePackage, .data], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
                 Task { await viewModel.importEncryptedSharePackage(from: url) }
             }

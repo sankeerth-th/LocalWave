@@ -14,6 +14,10 @@ Covered unit behavior:
 - iOS UUID derivation vectors.
 - BLE packet framing, chunking, reassembly, CRC, and oversized rejection.
 - X25519/HKDF/AES-GCM encrypt/decrypt, wrong-key failure, replay rejection.
+- LW-SSOT object package JSON round trip.
+- Encrypted object package decrypt after JSON round trip.
+- XOR parity recovery for one missing piece in a stripe.
+- Relay cache stores opaque encrypted chunks only.
 - Room peer/message repositories.
 - Redacted logger.
 - Mock engine state/message behavior.
@@ -66,9 +70,28 @@ Manual UI path:
 2. Use the same Frequency Code.
 3. Verify Android/iPhone discovery, messages both directions, Wake both directions, and different-code invisibility.
 
+## File Transfer And Native Share
+
+1. Use the same Frequency Code on Android and iPhone.
+2. From Android Chat, select Share Package and choose a small image or document.
+3. Send the `.localwavepkg` through Android Sharesheet to the iPhone.
+4. On iPhone, import the package.
+5. Repeat iPhone to Android.
+
+Expected: the recipient decrypts locally only after object manifest, encrypted piece hashes, Merkle root, expiry, and final payload hash verify. The sender remains exported/pending unless it receives an in-app receipt.
+
+## L2CAP Object Transfer
+
+1. Keep both apps foregrounded on physical devices.
+2. Send 100 KB, 1 MB, 10 MB, and 25 MB files using Send File.
+3. Walk one device out of range mid-transfer, then reconnect.
+
+Expected: GATT carries manifest/control traffic, L2CAP carries piece batches, verified pieces are cached, and the app resumes missing pieces rather than claiming fake delivery.
+
 ## Troubleshooting
 
 - Real BLE requires physical devices.
+- Android/iOS L2CAP interoperability cannot be validated on an emulator alone.
 - Android 12+ requires Bluetooth scan/advertise/connect runtime permissions.
 - Android 13+ requires notification permission for Wake notifications.
 - OEM battery policy may throttle background BLE work.

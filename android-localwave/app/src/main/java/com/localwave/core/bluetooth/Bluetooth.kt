@@ -42,6 +42,7 @@ import com.localwave.core.model.TransportPermissionState
 import com.localwave.core.model.TransportState
 import com.localwave.core.notifications.WakeNotificationManager
 import com.localwave.core.protocol.UuidDerivation
+import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -133,10 +134,10 @@ class AndroidBleTransport(
         }
         val profile = GattProfile.forChannel(channel)
         l2capManager = BleL2capManager(adapter, logger, events).also { it.start() }
-        advertiserServer = BleAdvertiserServer(context, profile, identity, logger, l2capManager?.localPsm()) { data ->
+        advertiserServer = BleAdvertiserServer(context, profile, channel, identity, logger, l2capManager?.localPsm()) { data ->
             events.tryEmit(BluetoothTransportEvent.Packet(data, null))
         }.also { it.start() }
-        gattClient = GattClientManager(context, profile, logger, events, l2capManager)
+        gattClient = GattClientManager(context, profile, channel, logger, events, l2capManager)
         scannerClient = BleScannerClient(context, profile, logger) { result ->
             gattClient?.connect(result)
         }.also { it.start() }
@@ -200,12 +201,14 @@ private data class PresenceAdvertisement(
     val displayName: String,
     val fingerprint: String,
     val agreementPublicKey: String,
-    val l2capPsm: Int? = null
+    val l2capPsm: Int? = null,
+    val discoveryToken: String
 )
 
 class BleAdvertiserServer(
     private val context: Context,
     private val profile: GattProfile,
+    private val channel: ChannelCode,
     private val identity: LocalIdentity,
     private val logger: RedactedLogger,
     private val l2capPsm: Int?,
@@ -294,7 +297,8 @@ class BleAdvertiserServer(
             displayName = identity.displayName,
             fingerprint = identity.fingerprint,
             agreementPublicKey = Base64.getEncoder().encodeToString(identity.agreementPublicKey),
-            l2capPsm = l2capPsm
+            l2capPsm = l2capPsm,
+            discoveryToken = Base64.getEncoder().encodeToString(DiscoveryTokenFactory.token(channel))
         )
     ).encodeToByteArray()
 }
@@ -336,6 +340,7 @@ class BleScannerClient(
 class GattClientManager(
     private val context: Context,
     private val profile: GattProfile,
+    private val channel: ChannelCode,
     private val logger: RedactedLogger,
     private val events: MutableSharedFlow<BluetoothTransportEvent>,
     private val l2capManager: BleL2capManager?
@@ -390,6 +395,7 @@ class GattClientManager(
                 return
             }
             val peerId = PeerId(presence.peerId)
+            if (!DiscoveryTokenFactory.accepts(Base64.getDecoder().decode(presence.discoveryToken), channel)) return
             val service = gatt.getService(profile.serviceUuid) ?: return
             val packetCharacteristic = service.getCharacteristic(profile.packetCharacteristicUuid) ?: return
             connected[peerId] = GattConnection(gatt, packetCharacteristic)
@@ -411,6 +417,18 @@ class GattClientManager(
             connected.values.firstOrNull { it.gatt == gatt }?.flush()
         }
     }
+}
+
+object DiscoveryTokenFactory {
+    fun token(channel: ChannelCode, nowMillis: Long = System.currentTimeMillis()): ByteArray {
+        val epochWindow = nowMillis / (5 * 60 * 1000L)
+        val digest = MessageDigest.getInstance("SHA-256").digest("LocalWave.DiscoveryToken.v1|${channel.normalized}|$epochWindow".encodeToByteArray())
+        return digest.copyOfRange(0, 16)
+    }
+
+    fun accepts(candidate: ByteArray, channel: ChannelCode, nowMillis: Long = System.currentTimeMillis()): Boolean =
+        MessageDigest.isEqual(candidate, token(channel, nowMillis)) ||
+            MessageDigest.isEqual(candidate, token(channel, nowMillis - (5 * 60 * 1000L)))
 }
 
 class BleL2capManager(

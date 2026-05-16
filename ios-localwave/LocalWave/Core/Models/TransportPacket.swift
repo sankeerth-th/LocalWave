@@ -5,6 +5,8 @@ public enum TransportPacketKind: UInt8, Codable, Sendable {
     case message = 2
     case wake = 3
     case receipt = 4
+    case objectManifest = 5
+    case objectControl = 6
 }
 
 public struct TransportPacket: Identifiable, Hashable, Codable, Sendable {
@@ -39,4 +41,3 @@ public struct TransportPacket: Identifiable, Hashable, Codable, Sendable {
         self.body = body
     }
 }
-

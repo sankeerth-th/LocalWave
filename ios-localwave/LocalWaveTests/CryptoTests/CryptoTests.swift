@@ -70,6 +70,40 @@ final class CryptoTests: XCTestCase {
         XCTAssertEqual(decoded.transferId, envelope.transferId)
     }
 
+    func testObjectPackageDecryptsAfterJsonRoundTrip() async throws {
+        let aliceCrypto = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
+        let bobCrypto = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))
+        let objectCrypto = ObjectTransferCrypto(sessionCrypto: aliceCrypto)
+        let receiverObjectCrypto = ObjectTransferCrypto(sessionCrypto: bobCrypto)
+        let channel = try ChannelCode("DOCK-A-17")
+        let attachment = try OutboundAttachment(fileName: "inventory.pdf", contentType: "application/pdf", data: Data(repeating: 0x42, count: 128 * 1024))
+
+        let package = try await objectCrypto.createPackage(attachment: attachment, to: TestIdentities.bobPeer, localIdentity: TestIdentities.alice.identity, channel: channel)
+        let encoded = try ObjectTransferCodec.encode(package)
+        let decoded = try ObjectTransferCodec.decode(LocalWaveObjectPackage.self, from: encoded)
+        let result = try await receiverObjectCrypto.decryptPackage(decoded, from: TestIdentities.alicePeer, channel: channel)
+
+        XCTAssertEqual(result.attachment.fileName, attachment.fileName)
+        XCTAssertEqual(result.attachment.data, attachment.data)
+        XCTAssertEqual(result.receipt.objectId, package.manifest.objectId)
+    }
+
+    func testObjectPackageRecoversOneMissingPieceWithParity() async throws {
+        let aliceCrypto = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
+        let bobCrypto = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))
+        let objectCrypto = ObjectTransferCrypto(sessionCrypto: aliceCrypto)
+        let receiverObjectCrypto = ObjectTransferCrypto(sessionCrypto: bobCrypto)
+        let channel = try ChannelCode("DOCK-A-17")
+        let attachment = try OutboundAttachment(fileName: "short-video.mp4", contentType: "video/mp4", data: Data(repeating: 0x7A, count: 1_200_000))
+        let package = try await objectCrypto.createPackage(attachment: attachment, to: TestIdentities.bobPeer, localIdentity: TestIdentities.alice.identity, channel: channel)
+
+        XCTAssertTrue(package.pieces.contains { $0.pieceKind == .recovery })
+        let piecesWithOneMissing = package.pieces.filter { !($0.pieceKind == .data && $0.pieceIndex == 3) }
+        let recovered = try await receiverObjectCrypto.decryptPackage(LocalWaveObjectPackage(manifest: package.manifest, pieces: piecesWithOneMissing), from: TestIdentities.alicePeer, channel: channel)
+
+        XCTAssertEqual(recovered.attachment.data, attachment.data)
+    }
+
     func testInviteAuthenticationRejectsWrongPhrase() throws {
         let channel = try ChannelCode("DOCK-A-17")
         let nonce = Data("first-contact-nonce".utf8)

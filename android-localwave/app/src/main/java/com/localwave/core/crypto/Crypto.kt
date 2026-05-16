@@ -311,6 +311,12 @@ class SessionCrypto(
         }
     }
 
+    suspend fun objectWrappingKey(peer: PeerProfile, channel: ChannelCode): ByteArray {
+        val peerPublic = peer.publicKeyData ?: throw CryptoException.MissingPeerPublicKey
+        val keyPair = identityStore.keyPair()
+        return deriveKey(keyPair.agreementPrivateKeyData, peerPublic, keyPair.identity.peerId, peer.id, channel)
+    }
+
     private fun deriveKey(
         localPrivateKeyData: ByteArray,
         remotePublicKeyData: ByteArray,
@@ -428,7 +434,7 @@ private fun MutableList<Byte>.addUtf8Field(value: String) {
     addAll(bytes.toList())
 }
 
-private fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
+fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
     val mac = Mac.getInstance("HmacSHA256")
     mac.init(SecretKeySpec(salt, "HmacSHA256"))
     val prk = mac.doFinal(ikm)
@@ -450,7 +456,7 @@ private fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length:
     return result
 }
 
-private fun aesGcmEncrypt(plaintext: ByteArray, key: ByteArray, nonce: ByteArray, aad: ByteArray): Pair<ByteArray, ByteArray> {
+fun aesGcmEncrypt(plaintext: ByteArray, key: ByteArray, nonce: ByteArray, aad: ByteArray): Pair<ByteArray, ByteArray> {
     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
     cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce))
     cipher.updateAAD(aad)
@@ -458,7 +464,7 @@ private fun aesGcmEncrypt(plaintext: ByteArray, key: ByteArray, nonce: ByteArray
     return combined.copyOfRange(0, combined.size - 16) to combined.copyOfRange(combined.size - 16, combined.size)
 }
 
-private fun aesGcmDecrypt(ciphertext: ByteArray, tag: ByteArray, key: ByteArray, nonce: ByteArray, aad: ByteArray): ByteArray {
+fun aesGcmDecrypt(ciphertext: ByteArray, tag: ByteArray, key: ByteArray, nonce: ByteArray, aad: ByteArray): ByteArray {
     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
     cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce))
     cipher.updateAAD(aad)

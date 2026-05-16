@@ -22,7 +22,9 @@ import com.localwave.core.persistence.LOCALWAVE_MIGRATION_2_3
 import com.localwave.core.persistence.RoomMessageRepository
 import com.localwave.core.persistence.RoomPeerRepository
 import com.localwave.core.protocol.LocalWaveEngine
+import com.localwave.core.protocol.LocalWaveObjectFileStore
 import com.localwave.core.protocol.RealLocalWaveEngine
+import java.io.File
 
 enum class EngineMode { REAL, MOCK }
 
@@ -48,7 +50,8 @@ data class AppEnvironment(
                 peerRepository = RoomPeerRepository(database.peerDao()),
                 messageRepository = RoomMessageRepository(database.messageDao()),
                 transport = transport,
-                wakeNotificationManager = WakeNotificationManager(appContext)
+                wakeNotificationManager = WakeNotificationManager(appContext),
+                objectStore = LocalWaveObjectFileStore(File(appContext.filesDir, "localwave-objects"))
             )
             return AppEnvironment(
                 engine = engine,

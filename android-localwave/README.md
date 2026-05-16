@@ -31,12 +31,25 @@ The app includes:
 
 - onboarding: welcome, display name, Frequency Code, Bluetooth education, notification education
 - People/Frequency screen: current Frequency Code, permission banners, active-mode status, peer list, empty state, Wake actions
-- Chat screen: peer status, signal, Wake, message composer, pending/sent/delivered/failed labels, 4 KB limit
+- Chat screen: peer status, signal, Wake, message composer, pending/sent/delivered/failed labels, 4 KB limit, encrypted file send/export/import actions
 - Settings: profile, Frequency Code, privacy explanation, identity fingerprint, permissions, redacted diagnostics
 
 The UI depends on `LocalWaveEngine`, not concrete BLE, crypto, packet framing, Room DAO, or Android Keystore classes. `MockLocalWaveEngine` supports previews, unit tests, and emulator UI checks. Production builds use `RealLocalWaveEngine`; mock mode is exposed only in Diagnostics so sample peers/messages are not mistaken for physical-device BLE evidence.
 
 Wake and background language is intentionally best-effort: Android notification permission, DND/Focus equivalents, Bluetooth state, background limits, and battery policy can affect reachability.
+
+## Secure Object Transfer
+
+Android implements the shared LW-SSOT v1 object format used by iOS:
+
+- encrypted object manifests and encrypted pieces;
+- 32 KiB default data pieces;
+- XOR parity recovery, one recovery piece per 10-piece stripe;
+- app-private encrypted object cache under internal storage;
+- L2CAP piece batches for in-app bulk transfer when both peers expose PSM support;
+- `.localwavepkg` v2 export/import through the Android Sharesheet and document picker.
+
+GATT remains the control plane for manifest announcements, receipts, wake, text fallback, and small control frames. Large native shares are user-mediated and are not treated as app-controlled delivery.
 
 ## iPhone Interop Testing
 
