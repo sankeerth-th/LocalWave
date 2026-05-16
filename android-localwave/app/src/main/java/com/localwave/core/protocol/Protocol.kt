@@ -2,12 +2,18 @@ package com.localwave.core.protocol
 
 import com.localwave.core.model.ChannelCode
 import com.localwave.core.model.ChatMessage
+import com.localwave.core.model.AttachmentEnvelope
+import com.localwave.core.model.EncryptedSharePackage
+import com.localwave.core.model.ImportedSharePackage
 import com.localwave.core.model.LocalIdentity
 import com.localwave.core.model.MessageEnvelope
 import com.localwave.core.model.MessageId
 import com.localwave.core.model.MessageStatus
+import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
+import com.localwave.core.model.TransferId
+import com.localwave.core.model.TransferRecord
 import com.localwave.core.model.TransportState
 import kotlinx.coroutines.flow.Flow
 
@@ -18,8 +24,13 @@ interface LocalWaveEngine {
     suspend fun switchChannel(channel: ChannelCode)
     suspend fun sendMessage(text: String, to: PeerId): MessageId
     suspend fun sendWake(to: PeerId)
+    suspend fun sendAttachment(attachment: OutboundAttachment, to: PeerId): TransferId
+    suspend fun exportEncryptedSharePackage(attachment: OutboundAttachment, to: PeerId): EncryptedSharePackage
+    suspend fun importEncryptedSharePackage(packageFile: EncryptedSharePackage): ImportedSharePackage
+    suspend fun verifyPeer(peerId: PeerId, fingerprint: String)
     fun observePeers(): Flow<List<PeerProfile>>
     fun observeMessages(peerId: PeerId): Flow<List<ChatMessage>>
+    fun observeTransfers(): Flow<List<TransferRecord>>
     fun observeTransportState(): Flow<TransportState>
     suspend fun localIdentity(): LocalIdentity
 }
@@ -27,6 +38,8 @@ interface LocalWaveEngine {
 interface CryptoService {
     suspend fun encryptMessage(text: String, peer: PeerProfile, counter: Long, channel: ChannelCode): MessageEnvelope
     suspend fun decryptMessage(envelope: MessageEnvelope, peer: PeerProfile, channel: ChannelCode): String
+    suspend fun encryptAttachment(attachment: OutboundAttachment, peer: PeerProfile, counter: Long, channel: ChannelCode): AttachmentEnvelope
+    suspend fun decryptAttachment(envelope: AttachmentEnvelope, peer: PeerProfile, channel: ChannelCode): OutboundAttachment
 }
 
 interface MessageRepository {

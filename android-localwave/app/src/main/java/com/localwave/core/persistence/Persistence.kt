@@ -10,12 +10,15 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.localwave.core.model.ChatMessage
 import com.localwave.core.model.MessageDirection
 import com.localwave.core.model.MessageId
 import com.localwave.core.model.MessageStatus
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
+import com.localwave.core.model.PeerTrustState
 import com.localwave.core.model.PresenceState
 import com.localwave.core.protocol.MessageRepository
 import com.localwave.core.protocol.PeerRepository
@@ -31,7 +34,7 @@ import kotlinx.coroutines.flow.map
         KnownPeerTrustEntity::class,
         DiagnosticEventEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(LocalWaveTypeConverters::class)
@@ -40,6 +43,18 @@ abstract class LocalWaveDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun replayCounterDao(): ReplayCounterDao
     abstract fun diagnosticEventDao(): DiagnosticEventDao
+}
+
+val LOCALWAVE_MIGRATION_1_2: Migration = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE peers ADD COLUMN trustState TEXT NOT NULL DEFAULT 'UNVERIFIED'")
+    }
+}
+
+val LOCALWAVE_MIGRATION_2_3: Migration = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE peers ADD COLUMN l2capPsm INTEGER")
+    }
 }
 
 class LocalWaveTypeConverters {
@@ -57,9 +72,11 @@ data class PeerEntity(
     val rssi: Int,
     val lastSeenEpochMillis: Long,
     val state: PresenceState,
+    val trustState: PeerTrustState = PeerTrustState.UNVERIFIED,
+    val l2capPsm: Int? = null,
     val publicKeyData: ByteArray?
 ) {
-    fun toModel(): PeerProfile = PeerProfile(id, displayName, fingerprint, rssi, lastSeenEpochMillis, state, publicKeyData)
+    fun toModel(): PeerProfile = PeerProfile(id, displayName, fingerprint, rssi, lastSeenEpochMillis, state, trustState, l2capPsm, publicKeyData)
 
     companion object {
         fun from(peer: PeerProfile): PeerEntity = PeerEntity(
@@ -69,6 +86,8 @@ data class PeerEntity(
             rssi = peer.rssi,
             lastSeenEpochMillis = peer.lastSeenEpochMillis,
             state = peer.state,
+            trustState = peer.trustState,
+            l2capPsm = peer.l2capPsm,
             publicKeyData = peer.publicKeyData
         )
     }

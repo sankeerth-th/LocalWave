@@ -4,7 +4,7 @@ set -eu
 APP_HOME="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 GRADLE_VERSION="8.13"
 GRADLE_USER_HOME="${GRADLE_USER_HOME:-"$HOME/.gradle"}"
-DIST_ROOT="$GRADLE_USER_HOME/codex-localwave-gradle"
+DIST_ROOT="$GRADLE_USER_HOME/localwave-gradle"
 DIST_ZIP="$DIST_ROOT/gradle-$GRADLE_VERSION-bin.zip"
 DIST_DIR="$DIST_ROOT/gradle-$GRADLE_VERSION"
 

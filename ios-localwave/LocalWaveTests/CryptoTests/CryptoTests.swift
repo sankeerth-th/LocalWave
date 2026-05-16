@@ -18,6 +18,113 @@ final class CryptoTests: XCTestCase {
         XCTAssertEqual(envelope.recipientId, TestIdentities.bob.identity.peerId)
     }
 
+    func testEncodedMessageEnvelopeDecryptsAfterJsonRoundTrip() async throws {
+        let aliceStore = InMemoryIdentityStore(keyPair: TestIdentities.alice)
+        let bobStore = InMemoryIdentityStore(keyPair: TestIdentities.bob)
+        let alice = SessionCrypto(identityStore: aliceStore)
+        let bob = SessionCrypto(identityStore: bobStore)
+        let channel = try ChannelCode("DOCK-A-17")
+
+        let envelope = try await alice.encryptMessage("Inbound trailer cleared", to: TestIdentities.bobPeer, counter: 10, channel: channel)
+        let encoded = try SecureEnvelopeCodec.encode(envelope)
+        let decoded = try SecureEnvelopeCodec.decode(MessageEnvelope.self, from: encoded)
+        let plaintext = try await bob.decryptMessage(decoded, from: TestIdentities.alicePeer, channel: channel)
+
+        XCTAssertEqual(plaintext, "Inbound trailer cleared")
+        XCTAssertEqual(decoded.timestamp.timeIntervalSince1970, envelope.timestamp.timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    func testEncodedWakeEnvelopeDecryptsAfterJsonRoundTrip() async throws {
+        let aliceStore = InMemoryIdentityStore(keyPair: TestIdentities.alice)
+        let bobStore = InMemoryIdentityStore(keyPair: TestIdentities.bob)
+        let alice = SessionCrypto(identityStore: aliceStore)
+        let bob = SessionCrypto(identityStore: bobStore)
+        let channel = try ChannelCode("DOCK-A-17")
+
+        let envelope = try await alice.encryptWake(to: TestIdentities.bobPeer, counter: 11, channel: channel)
+        let encoded = try SecureEnvelopeCodec.encode(envelope)
+        let decoded = try SecureEnvelopeCodec.decode(WakeEnvelope.self, from: encoded)
+
+        try await bob.decryptWake(decoded, from: TestIdentities.alicePeer, channel: channel)
+        XCTAssertEqual(decoded.timestamp.timeIntervalSince1970, envelope.timestamp.timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    func testAttachmentEnvelopeDecryptsAfterJsonRoundTrip() async throws {
+        let alice = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
+        let bob = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))
+        let channel = try ChannelCode("DOCK-A-17")
+        let attachment = try OutboundAttachment(
+            fileName: "dock-photo.jpg",
+            contentType: "image/jpeg",
+            data: Data("encrypted-image-bytes".utf8)
+        )
+
+        let envelope = try await alice.encryptAttachment(attachment, to: TestIdentities.bobPeer, counter: 13, channel: channel)
+        let encoded = try SecureEnvelopeCodec.encode(envelope)
+        let decoded = try SecureEnvelopeCodec.decode(AttachmentEnvelope.self, from: encoded)
+        let decrypted = try await bob.decryptAttachment(decoded, from: TestIdentities.alicePeer, channel: channel)
+
+        XCTAssertEqual(decrypted.fileName, attachment.fileName)
+        XCTAssertEqual(decrypted.contentType, attachment.contentType)
+        XCTAssertEqual(decrypted.data, attachment.data)
+        XCTAssertEqual(decoded.transferId, envelope.transferId)
+    }
+
+    func testInviteAuthenticationRejectsWrongPhrase() throws {
+        let channel = try ChannelCode("DOCK-A-17")
+        let nonce = Data("first-contact-nonce".utf8)
+        let proof = try InviteAuthenticator.makeProof(
+            local: TestIdentities.alice.identity,
+            remote: TestIdentities.bobPeer,
+            channel: channel,
+            invitePhrase: "correct horse battery",
+            nonce: nonce
+        )
+
+        XCTAssertTrue(try InviteAuthenticator.verify(
+            proof,
+            local: TestIdentities.bob.identity,
+            remote: TestIdentities.alicePeer,
+            channel: channel,
+            invitePhrase: "correct horse battery"
+        ))
+        XCTAssertFalse(try InviteAuthenticator.verify(
+            proof,
+            local: TestIdentities.bob.identity,
+            remote: TestIdentities.alicePeer,
+            channel: channel,
+            invitePhrase: "wrong invite phrase"
+        ))
+    }
+
+    func testRelayStoreKeepsOnlyOpaqueEncryptedChunks() throws {
+        let chunk = RelayChunk(
+            id: UUID(),
+            sourcePeerId: "alice",
+            destinationPeerId: "bob",
+            route: .fixedRelay,
+            expiresAt: Date().addingTimeInterval(60),
+            payload: Data("ciphertext-only".utf8)
+        )
+        var store = RelayChunkStore(maxChunks: 4)
+
+        try store.insert(chunk)
+        let available = store.chunks(for: "bob", now: Date())
+
+        XCTAssertEqual(available, [chunk])
+        XCTAssertEqual(available.first?.payload, Data("ciphertext-only".utf8))
+    }
+
+    func testWakeEnvelopeDecryptsWithMatchingPeerKey() async throws {
+        let alice = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
+        let bob = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))
+        let channel = try ChannelCode("DOCK-A-17")
+
+        let envelope = try await alice.encryptWake(to: TestIdentities.bobPeer, counter: 12, channel: channel)
+
+        try await bob.decryptWake(envelope, from: TestIdentities.alicePeer, channel: channel)
+    }
+
     func testDecryptFailsWithWrongPeerKey() async throws {
         let alice = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
         let bob = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))

@@ -1,11 +1,15 @@
 package com.localwave.core.crypto
 
 import com.localwave.core.model.ChannelCode
+import com.localwave.core.model.AttachmentEnvelope
+import com.localwave.core.model.AttachmentPlaintext
 import com.localwave.core.model.LocalIdentity
 import com.localwave.core.model.MessageEnvelope
+import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.WakeEnvelope
+import com.localwave.core.protocol.ProtocolJson
 import com.localwave.core.protocol.CryptoService
 import com.localwave.core.protocol.ProtocolConstants
 import com.localwave.core.protocol.UuidDerivation
@@ -205,6 +209,66 @@ class SessionCrypto(
         replayProtector.validate(envelope.senderId, channel, envelope.replayCounter)
     }
 
+    override suspend fun encryptAttachment(
+        attachment: OutboundAttachment,
+        peer: PeerProfile,
+        counter: Long,
+        channel: ChannelCode
+    ): AttachmentEnvelope {
+        val transferId = UUID.randomUUID()
+        val plaintext = AttachmentPlaintext(
+            fileName = attachment.fileName,
+            contentType = attachment.contentType.ifBlank { "application/octet-stream" },
+            byteCount = attachment.data.size,
+            sha256 = MessageDigest.getInstance("SHA-256").digest(attachment.data),
+            payload = attachment.data
+        )
+        val secure = encryptSecureEnvelope(
+            plaintext = ProtocolJson.encodeAttachmentPlaintext(plaintext),
+            kind = "attachment",
+            messageId = transferId,
+            peer = peer,
+            counter = counter.toULong(),
+            channel = channel
+        )
+        return AttachmentEnvelope(
+            version = secure.version,
+            senderId = secure.senderId,
+            recipientId = secure.recipientId,
+            timestampEpochMillis = secure.timestampEpochMillis,
+            transferId = transferId,
+            replayCounter = secure.replayCounter,
+            nonce = secure.nonce,
+            ciphertext = secure.ciphertext,
+            tag = secure.tag
+        )
+    }
+
+    override suspend fun decryptAttachment(envelope: AttachmentEnvelope, peer: PeerProfile, channel: ChannelCode): OutboundAttachment {
+        val secure = SecureEnvelope(
+            kind = "attachment",
+            senderId = envelope.senderId,
+            recipientId = envelope.recipientId,
+            timestampEpochMillis = envelope.timestampEpochMillis,
+            messageId = envelope.transferId,
+            replayCounter = envelope.replayCounter,
+            nonce = envelope.nonce,
+            ciphertext = envelope.ciphertext,
+            tag = envelope.tag
+        )
+        val plaintextBytes = decryptSecureEnvelope(secure, peer, channel)
+        replayProtector.validate(envelope.senderId, channel, envelope.replayCounter, envelope.transferId)
+        val plaintext = ProtocolJson.decodeAttachmentPlaintext(plaintextBytes)
+        if (plaintext.byteCount != plaintext.payload.size) throw CryptoException.DecryptionFailed
+        val computedHash = MessageDigest.getInstance("SHA-256").digest(plaintext.payload)
+        if (!computedHash.contentEquals(plaintext.sha256)) throw CryptoException.DecryptionFailed
+        return OutboundAttachment(
+            fileName = plaintext.fileName,
+            contentType = plaintext.contentType.ifBlank { "application/octet-stream" },
+            data = plaintext.payload
+        )
+    }
+
     private suspend fun encryptSecureEnvelope(
         plaintext: ByteArray,
         kind: String,
@@ -291,6 +355,72 @@ class SessionCrypto(
         val tag: ByteArray
     )
 }
+
+object InviteAuthenticator {
+    fun makeProof(
+        local: LocalIdentity,
+        remote: PeerProfile,
+        channel: ChannelCode,
+        invitePhrase: String,
+        nonce: ByteArray = ByteArray(32).also { SecureRandom().nextBytes(it) }
+    ): InviteAuthProof {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(inviteKey(channel, invitePhrase), "HmacSHA256"))
+        val proof = mac.doFinal(transcript(local.peerId, remote.id, channel, local.fingerprint, remote.fingerprint, nonce))
+        return InviteAuthProof(local.peerId, remote.id, nonce, proof)
+    }
+
+    fun verify(proof: InviteAuthProof, local: LocalIdentity, remote: PeerProfile, channel: ChannelCode, invitePhrase: String): Boolean {
+        if (proof.senderId != remote.id || proof.recipientId != local.peerId) return false
+        val expected = makeProof(
+            local = LocalIdentity(remote.id, remote.displayName, remote.publicKeyData ?: byteArrayOf(), byteArrayOf(), remote.fingerprint),
+            remote = PeerProfile(local.peerId, local.displayName, local.fingerprint, 0, 0, com.localwave.core.model.PresenceState.AVAILABLE, publicKeyData = local.agreementPublicKey),
+            channel = channel,
+            invitePhrase = invitePhrase,
+            nonce = proof.nonce
+        )
+        return MessageDigest.isEqual(proof.proof, expected.proof)
+    }
+
+    private fun inviteKey(channel: ChannelCode, invitePhrase: String): ByteArray {
+        val normalized = invitePhrase.trim()
+        require(normalized.encodeToByteArray().size >= 12) { "Private channels require an invite phrase of at least 12 characters." }
+        val phraseDigest = MessageDigest.getInstance("SHA-256").digest(normalized.toByteArray(StandardCharsets.UTF_8))
+        return hkdfSha256(
+            ikm = phraseDigest,
+            salt = UuidDerivation.derive(channel).hkdfSalt,
+            info = "LocalWave.InviteAuth.v1".toByteArray(StandardCharsets.UTF_8),
+            length = 32
+        )
+    }
+
+    private fun transcript(
+        localId: PeerId,
+        remoteId: PeerId,
+        channel: ChannelCode,
+        localFingerprint: String,
+        remoteFingerprint: String,
+        nonce: ByteArray
+    ): ByteArray {
+        val orderedPeers = listOf(localId.value, remoteId.value).sorted().joinToString("|")
+        val orderedFingerprints = listOf(localFingerprint, remoteFingerprint).sorted().joinToString("|")
+        val out = mutableListOf<Byte>()
+        out.addAll("LocalWave.FirstContact.v1".toByteArray(StandardCharsets.UTF_8).toList())
+        out.addUtf8Field(channel.normalized)
+        out.addUtf8Field(orderedPeers)
+        out.addUtf8Field(orderedFingerprints)
+        out.addAll(nonce.toList())
+        return out.toByteArray()
+    }
+}
+
+data class InviteAuthProof(
+    val senderId: PeerId,
+    val recipientId: PeerId,
+    val nonce: ByteArray,
+    val proof: ByteArray,
+    val version: UByte = 1u
+)
 
 private fun MutableList<Byte>.addUtf8Field(value: String) {
     val bytes = value.toByteArray(StandardCharsets.UTF_8)

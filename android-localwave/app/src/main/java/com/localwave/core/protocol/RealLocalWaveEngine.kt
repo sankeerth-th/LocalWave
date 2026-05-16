@@ -6,17 +6,27 @@ import com.localwave.core.bluetooth.BluetoothTransportEvent
 import com.localwave.core.bluetooth.PacketReassembler
 import com.localwave.core.crypto.IdentityKeyStore
 import com.localwave.core.crypto.SessionCrypto
+import com.localwave.core.model.AttachmentEnvelope
+import com.localwave.core.model.AttachmentPlaintext
 import com.localwave.core.model.ChannelCode
 import com.localwave.core.model.ChatMessage
+import com.localwave.core.model.DeliveryRoute
+import com.localwave.core.model.EncryptedSharePackage
+import com.localwave.core.model.ImportedSharePackage
 import com.localwave.core.model.LocalIdentity
 import com.localwave.core.model.MessageDirection
 import com.localwave.core.model.MessageId
 import com.localwave.core.model.MessageStatus
+import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
+import com.localwave.core.model.TransferId
+import com.localwave.core.model.TransferRecord
+import com.localwave.core.model.TransferStatus
 import com.localwave.core.model.TransportPacketKind
 import com.localwave.core.model.TransportState
 import com.localwave.core.model.WakeEvent
+import java.security.MessageDigest
 import com.localwave.core.notifications.WakeNotificationManager
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -42,6 +52,7 @@ class RealLocalWaveEngine(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val peers = MutableStateFlow<List<PeerProfile>>(emptyList())
     private val transportState = MutableStateFlow(TransportState())
+    private val transfers = MutableStateFlow<List<TransferRecord>>(emptyList())
     private val framer = BlePacketFramer()
     private val reassembler = PacketReassembler()
     private var channel: ChannelCode? = null
@@ -98,8 +109,84 @@ class RealLocalWaveEngine(
         transport.send(ProtocolJson.encodeWakeEnvelope(wake), TransportPacketKind.WAKE, to)
     }
 
+    override suspend fun sendAttachment(attachment: OutboundAttachment, to: PeerId): TransferId {
+        val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
+        val peer = peers.value.firstOrNull { it.id == to } ?: peerRepository.peer(to) ?: throw IllegalArgumentException("Peer unavailable.")
+        val envelope = crypto.encryptAttachment(attachment, peer, replayCounter++, activeChannel)
+        val transfer = TransferRecord(
+            id = envelope.transferId,
+            peerId = to,
+            fileName = attachment.fileName,
+            byteCount = attachment.data.size,
+            route = DeliveryRoute.L2CAP,
+            status = TransferStatus.SENDING
+        )
+        upsertTransfer(transfer)
+        transport.sendBulk(ProtocolJson.encodeAttachmentEnvelope(envelope), to)
+        upsertTransfer(transfer.copy(status = TransferStatus.PENDING, updatedAtEpochMillis = System.currentTimeMillis()))
+        return envelope.transferId
+    }
+
+    override suspend fun exportEncryptedSharePackage(attachment: OutboundAttachment, to: PeerId): EncryptedSharePackage {
+        val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
+        val peer = peers.value.firstOrNull { it.id == to } ?: peerRepository.peer(to) ?: throw IllegalArgumentException("Peer unavailable.")
+        val envelope = crypto.encryptAttachment(attachment, peer, replayCounter++, activeChannel)
+        val packageFile = EncryptedSharePackage(
+            packageId = envelope.transferId,
+            createdAtEpochMillis = envelope.timestampEpochMillis,
+            route = DeliveryRoute.NATIVE_SHARE,
+            senderId = envelope.senderId,
+            recipientId = envelope.recipientId,
+            envelope = envelope
+        )
+        upsertTransfer(
+            TransferRecord(
+                id = packageFile.packageId,
+                peerId = to,
+                fileName = attachment.fileName,
+                byteCount = attachment.data.size,
+                route = DeliveryRoute.NATIVE_SHARE,
+                status = TransferStatus.EXPORTED
+            )
+        )
+        return packageFile
+    }
+
+    override suspend fun importEncryptedSharePackage(packageFile: EncryptedSharePackage): ImportedSharePackage {
+        val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
+        require(packageFile.version == 1.toUByte()) { "Unsupported LocalWave package version." }
+        val peer = peers.value.firstOrNull { it.id == packageFile.senderId } ?: peerRepository.peer(packageFile.senderId) ?: throw IllegalArgumentException("Peer unavailable.")
+        val attachment = crypto.decryptAttachment(packageFile.envelope, peer, activeChannel)
+        val verifiedHash = MessageDigest.getInstance("SHA-256").digest(attachment.data)
+        upsertTransfer(
+            TransferRecord(
+                id = packageFile.packageId,
+                peerId = packageFile.senderId,
+                fileName = attachment.fileName,
+                byteCount = attachment.data.size,
+                route = DeliveryRoute.NATIVE_SHARE,
+                status = TransferStatus.DELIVERED
+            )
+        )
+        return ImportedSharePackage(packageFile.packageId, packageFile.senderId, attachment, verifiedHash)
+    }
+
+    override suspend fun verifyPeer(peerId: PeerId, fingerprint: String) {
+        val current = peers.value.firstOrNull { it.id == peerId } ?: peerRepository.peer(peerId) ?: throw IllegalArgumentException("Peer unavailable.")
+        if (!current.fingerprint.equals(fingerprint.trim(), ignoreCase = true)) {
+            val changed = current.copy(trustState = com.localwave.core.model.PeerTrustState.CHANGED)
+            peerRepository.upsert(changed)
+            peers.value = peers.value.map { if (it.id == peerId) changed else it }
+            throw IllegalArgumentException("This teammate's identity fingerprint does not match.")
+        }
+        val verified = current.copy(trustState = com.localwave.core.model.PeerTrustState.VERIFIED)
+        peerRepository.upsert(verified)
+        peers.value = peers.value.map { if (it.id == peerId) verified else it }
+    }
+
     override fun observePeers(): Flow<List<PeerProfile>> = peers
     override fun observeMessages(peerId: PeerId): Flow<List<ChatMessage>> = messageRepository.observeMessages(peerId)
+    override fun observeTransfers(): Flow<List<TransferRecord>> = transfers
     override fun observeTransportState(): Flow<TransportState> = combine(transport.state, transportState) { a, b -> if (b != TransportState()) b else a }
     override suspend fun localIdentity(): LocalIdentity = identityStore.loadOrCreateIdentity(displayName.ifBlank { "Local User" })
 
@@ -110,6 +197,7 @@ class RealLocalWaveEngine(
                 peers.value = (peers.value.filterNot { it.id == event.peer.id } + event.peer).sortedBy { it.displayName.lowercase() }
             }
             is BluetoothTransportEvent.Packet -> handlePacket(event.data)
+            is BluetoothTransportEvent.Bulk -> handleBulk(event.data)
             is BluetoothTransportEvent.StateChanged -> transportState.value = event.state
         }
     }
@@ -138,6 +226,27 @@ class RealLocalWaveEngine(
             TransportPacketKind.PRESENCE,
             TransportPacketKind.RECEIPT -> Unit
         }
+    }
+
+    private suspend fun handleBulk(data: ByteArray) {
+        val activeChannel = channel ?: return
+        val envelope = ProtocolJson.decodeAttachmentEnvelope(data)
+        val peer = peers.value.firstOrNull { it.id == envelope.senderId } ?: peerRepository.peer(envelope.senderId) ?: return
+        val attachment = crypto.decryptAttachment(envelope, peer, activeChannel)
+        upsertTransfer(
+            TransferRecord(
+                id = envelope.transferId,
+                peerId = peer.id,
+                fileName = attachment.fileName,
+                byteCount = attachment.data.size,
+                route = DeliveryRoute.L2CAP,
+                status = TransferStatus.DELIVERED
+            )
+        )
+    }
+
+    private fun upsertTransfer(record: TransferRecord) {
+        transfers.value = transfers.value.filterNot { it.id == record.id } + record
     }
 }
 
@@ -195,6 +304,81 @@ object ProtocolJson {
                 nonce = Base64.getDecoder().decode(json.getString("nonce")),
                 ciphertext = Base64.getDecoder().decode(json.getString("ciphertext")),
                 tag = Base64.getDecoder().decode(json.getString("tag"))
+            )
+        }
+
+    fun encodeAttachmentPlaintext(plaintext: AttachmentPlaintext): ByteArray =
+        JSONObject()
+            .put("fileName", plaintext.fileName)
+            .put("contentType", plaintext.contentType)
+            .put("byteCount", plaintext.byteCount)
+            .put("sha256", Base64.getEncoder().encodeToString(plaintext.sha256))
+            .put("payload", Base64.getEncoder().encodeToString(plaintext.payload))
+            .toString()
+            .encodeToByteArray()
+
+    fun decodeAttachmentPlaintext(bytes: ByteArray): AttachmentPlaintext =
+        JSONObject(bytes.decodeToString()).let { json ->
+            AttachmentPlaintext(
+                fileName = json.getString("fileName"),
+                contentType = json.getString("contentType"),
+                byteCount = json.getInt("byteCount"),
+                sha256 = Base64.getDecoder().decode(json.getString("sha256")),
+                payload = Base64.getDecoder().decode(json.getString("payload"))
+            )
+        }
+
+    fun encodeAttachmentEnvelope(envelope: AttachmentEnvelope): ByteArray =
+        JSONObject()
+            .put("version", envelope.version.toInt())
+            .put("senderId", envelope.senderId.value)
+            .put("recipientId", envelope.recipientId.value)
+            .put("timestamp", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(envelope.timestampEpochMillis)))
+            .put("transferId", envelope.transferId.toString().uppercase())
+            .put("replayCounter", envelope.replayCounter.toLong())
+            .put("nonce", Base64.getEncoder().encodeToString(envelope.nonce))
+            .put("ciphertext", Base64.getEncoder().encodeToString(envelope.ciphertext))
+            .put("tag", Base64.getEncoder().encodeToString(envelope.tag))
+            .toString()
+            .encodeToByteArray()
+
+    fun decodeAttachmentEnvelope(bytes: ByteArray): AttachmentEnvelope =
+        JSONObject(bytes.decodeToString()).let { json ->
+            AttachmentEnvelope(
+                version = json.getInt("version").toUByte(),
+                senderId = PeerId(json.getString("senderId")),
+                recipientId = PeerId(json.getString("recipientId")),
+                timestampEpochMillis = Instant.parse(json.getString("timestamp")).toEpochMilli(),
+                transferId = UUID.fromString(json.getString("transferId")),
+                replayCounter = json.getLong("replayCounter").toULong(),
+                nonce = Base64.getDecoder().decode(json.getString("nonce")),
+                ciphertext = Base64.getDecoder().decode(json.getString("ciphertext")),
+                tag = Base64.getDecoder().decode(json.getString("tag"))
+            )
+        }
+
+    fun encodeEncryptedSharePackage(packageFile: EncryptedSharePackage): ByteArray =
+        JSONObject()
+            .put("version", packageFile.version.toInt())
+            .put("packageId", packageFile.packageId.toString().uppercase())
+            .put("createdAt", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(packageFile.createdAtEpochMillis)))
+            .put("route", packageFile.route.name)
+            .put("senderId", packageFile.senderId.value)
+            .put("recipientId", packageFile.recipientId.value)
+            .put("envelope", JSONObject(encodeAttachmentEnvelope(packageFile.envelope).decodeToString()))
+            .toString()
+            .encodeToByteArray()
+
+    fun decodeEncryptedSharePackage(bytes: ByteArray): EncryptedSharePackage =
+        JSONObject(bytes.decodeToString()).let { json ->
+            EncryptedSharePackage(
+                version = json.getInt("version").toUByte(),
+                packageId = UUID.fromString(json.getString("packageId")),
+                createdAtEpochMillis = Instant.parse(json.getString("createdAt")).toEpochMilli(),
+                route = DeliveryRoute.valueOf(json.getString("route")),
+                senderId = PeerId(json.getString("senderId")),
+                recipientId = PeerId(json.getString("recipientId")),
+                envelope = decodeAttachmentEnvelope(json.getJSONObject("envelope").toString().encodeToByteArray())
             )
         }
 }

@@ -3,6 +3,7 @@ import Foundation
 public enum SecureEnvelopeKind: String, Codable, Sendable {
     case message
     case wake
+    case attachment
 }
 
 public struct SecureEnvelope: Codable, Equatable, Sendable {
@@ -43,15 +44,37 @@ public struct SecureEnvelope: Codable, Equatable, Sendable {
 }
 
 public enum SecureEnvelopeCodec {
+    private static let fractionalISO8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let wholeSecondISO8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     public static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(fractionalISO8601Formatter.string(from: date))
+        }
         return try encoder.encode(value)
     }
 
     public static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let rawValue = try container.decode(String.self)
+            if let date = fractionalISO8601Formatter.date(from: rawValue) ?? wholeSecondISO8601Formatter.date(from: rawValue) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid LocalWave timestamp.")
+        }
         return try decoder.decode(type, from: data)
     }
 }

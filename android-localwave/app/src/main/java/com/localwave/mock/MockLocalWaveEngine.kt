@@ -2,13 +2,22 @@ package com.localwave.mock
 
 import com.localwave.core.model.ChannelCode
 import com.localwave.core.model.ChatMessage
+import com.localwave.core.model.DeliveryRoute
+import com.localwave.core.model.EncryptedSharePackage
+import com.localwave.core.model.ImportedSharePackage
 import com.localwave.core.model.LocalIdentity
 import com.localwave.core.model.MessageDirection
 import com.localwave.core.model.MessageId
 import com.localwave.core.model.MessageStatus
+import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
+import com.localwave.core.model.PeerTrustState
 import com.localwave.core.model.PresenceState
+import com.localwave.core.model.AttachmentEnvelope
+import com.localwave.core.model.TransferId
+import com.localwave.core.model.TransferRecord
+import com.localwave.core.model.TransferStatus
 import com.localwave.core.model.TransportPermissionState
 import com.localwave.core.model.TransportState
 import com.localwave.core.protocol.LocalWaveEngine
@@ -24,6 +33,7 @@ class MockLocalWaveEngine(
     private val autoDeliver = testScheduler == null
     private val peers = MutableStateFlow<List<PeerProfile>>(emptyList())
     private val messages = MutableStateFlow<Map<PeerId, List<ChatMessage>>>(emptyMap())
+    private val transfers = MutableStateFlow<List<TransferRecord>>(emptyList())
     private val state = MutableStateFlow(TransportState(permission = TransportPermissionState.UNKNOWN))
     private var identity = LocalIdentity(
         peerId = PeerId("android-local"),
@@ -71,8 +81,74 @@ class MockLocalWaveEngine(
         if (state.value.permission != TransportPermissionState.ALLOWED) throw IllegalStateException("Wake unavailable.")
     }
 
+    override suspend fun sendAttachment(attachment: OutboundAttachment, to: PeerId): TransferId {
+        val transfer = TransferRecord(
+            id = UUID.randomUUID(),
+            peerId = to,
+            fileName = attachment.fileName,
+            byteCount = attachment.data.size,
+            route = DeliveryRoute.L2CAP,
+            status = TransferStatus.FAILED,
+            failureReason = "Mock engine does not emulate BLE L2CAP attachment transfer."
+        )
+        transfers.update { it + transfer }
+        throw IllegalStateException(transfer.failureReason)
+    }
+
+    override suspend fun exportEncryptedSharePackage(attachment: OutboundAttachment, to: PeerId): EncryptedSharePackage {
+        val peer = peers.value.firstOrNull { it.id == to } ?: throw IllegalArgumentException("Peer unavailable.")
+        val transferId = UUID.randomUUID()
+        val envelope = AttachmentEnvelope(
+            senderId = identity.peerId,
+            recipientId = peer.id,
+            timestampEpochMillis = System.currentTimeMillis(),
+            transferId = transferId,
+            replayCounter = 0uL,
+            nonce = byteArrayOf(),
+            ciphertext = attachment.data,
+            tag = byteArrayOf()
+        )
+        val packageFile = EncryptedSharePackage(
+            packageId = transferId,
+            createdAtEpochMillis = envelope.timestampEpochMillis,
+            route = DeliveryRoute.NATIVE_SHARE,
+            senderId = identity.peerId,
+            recipientId = peer.id,
+            envelope = envelope
+        )
+        transfers.update {
+            it + TransferRecord(transferId, to, attachment.fileName, attachment.data.size, DeliveryRoute.NATIVE_SHARE, TransferStatus.EXPORTED)
+        }
+        return packageFile
+    }
+
+    override suspend fun importEncryptedSharePackage(packageFile: EncryptedSharePackage): ImportedSharePackage {
+        require(packageFile.version == 1.toUByte()) { "Unsupported LocalWave package version." }
+        val attachment = OutboundAttachment("Mock Import", "application/octet-stream", packageFile.envelope.ciphertext)
+        transfers.update {
+            it + TransferRecord(packageFile.packageId, packageFile.senderId, attachment.fileName, attachment.data.size, DeliveryRoute.NATIVE_SHARE, TransferStatus.DELIVERED)
+        }
+        return ImportedSharePackage(packageFile.packageId, packageFile.senderId, attachment, byteArrayOf())
+    }
+
+    override suspend fun verifyPeer(peerId: PeerId, fingerprint: String) {
+        var matched = false
+        peers.update { current ->
+            current.map { peer ->
+                if (peer.id != peerId) {
+                    peer
+                } else {
+                    matched = peer.fingerprint.equals(fingerprint.trim(), ignoreCase = true)
+                    peer.copy(trustState = if (matched) PeerTrustState.VERIFIED else PeerTrustState.CHANGED)
+                }
+            }
+        }
+        if (!matched) throw IllegalArgumentException("This teammate's identity fingerprint does not match.")
+    }
+
     override fun observePeers(): Flow<List<PeerProfile>> = peers
     override fun observeMessages(peerId: PeerId): Flow<List<ChatMessage>> = messages.map { it[peerId].orEmpty() }
+    override fun observeTransfers(): Flow<List<TransferRecord>> = transfers
     override fun observeTransportState(): Flow<TransportState> = state
     override suspend fun localIdentity(): LocalIdentity = identity
 

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable {
@@ -18,6 +19,8 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     private var peerContinuations: [AsyncStream<[PeerProfile]>.Continuation] = []
     private var stateContinuations: [AsyncStream<TransportState>.Continuation] = []
     private var messageContinuations: [PeerID: [AsyncStream<[ChatMessage]>.Continuation]] = [:]
+    private var transferContinuations: [AsyncStream<[TransferRecord]>.Continuation] = []
+    private var transfers: [TransferRecord] = []
     private var replayCounter: UInt64 = 1
     private var eventTask: Task<Void, Never>?
 
@@ -71,11 +74,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
 
     public func sendMessage(text: String, to peerId: PeerID) async throws -> MessageID {
         guard let channel else { throw LocalWaveError.invalidChannelCode }
-        let knownPeer = peers.first { $0.id == peerId }
-        let storedPeer = try await peerRepository.peer(id: peerId)
-        guard let peer = knownPeer ?? storedPeer else {
-            throw LocalWaveError.peerUnavailable
-        }
+        let peer = try await resolvePeer(peerId)
         let message = ChatMessage(peerId: peerId, text: text, direction: .outgoing, status: .pending)
         try await messageRepository.save(message)
         await publishMessages(peerId: peerId)
@@ -91,14 +90,98 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
 
     public func sendWake(to peerId: PeerID) async throws {
         guard let channel else { throw LocalWaveError.invalidChannelCode }
-        let knownPeer = peers.first { $0.id == peerId }
-        let storedPeer = try await peerRepository.peer(id: peerId)
-        guard let peer = knownPeer ?? storedPeer else {
-            throw LocalWaveError.peerUnavailable
-        }
+        let peer = try await resolvePeer(peerId)
         let wake = try await crypto.encryptWake(to: peer, counter: nextCounter(), channel: channel)
         let body = try SecureEnvelopeCodec.encode(wake)
         try await transport.send(body, kind: .wake, to: peerId)
+    }
+
+    public func sendAttachment(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> TransferID {
+        guard let channel else { throw LocalWaveError.invalidChannelCode }
+        let peer = try await resolvePeer(peerId)
+        let envelope = try await crypto.encryptAttachment(attachment, to: peer, counter: nextCounter(), channel: channel)
+        let body = try SecureEnvelopeCodec.encode(envelope)
+        let transfer = TransferRecord(
+            id: envelope.transferId,
+            peerId: peerId,
+            fileName: attachment.fileName,
+            byteCount: attachment.data.count,
+            route: .l2cap,
+            status: .sending,
+            updatedAt: Date(),
+            failureReason: nil
+        )
+        upsertTransfer(transfer)
+        try await transport.sendBulk(body, to: peerId)
+        upsertTransfer(TransferRecord(
+            id: envelope.transferId,
+            peerId: peerId,
+            fileName: attachment.fileName,
+            byteCount: attachment.data.count,
+            route: .l2cap,
+            status: .pending,
+            updatedAt: Date(),
+            failureReason: nil
+        ))
+        return envelope.transferId
+    }
+
+    public func exportEncryptedSharePackage(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> EncryptedSharePackage {
+        guard let channel else { throw LocalWaveError.invalidChannelCode }
+        let peer = try await resolvePeer(peerId)
+        let envelope = try await crypto.encryptAttachment(attachment, to: peer, counter: nextCounter(), channel: channel)
+        let package = EncryptedSharePackage(
+            version: 1,
+            packageId: envelope.transferId,
+            createdAt: envelope.timestamp,
+            route: .nativeShare,
+            senderId: envelope.senderId,
+            recipientId: envelope.recipientId,
+            envelope: envelope
+        )
+        upsertTransfer(TransferRecord(
+            id: package.packageId,
+            peerId: peerId,
+            fileName: attachment.fileName,
+            byteCount: attachment.data.count,
+            route: .nativeShare,
+            status: .exported,
+            updatedAt: Date(),
+            failureReason: nil
+        ))
+        return package
+    }
+
+    public func importEncryptedSharePackage(_ package: EncryptedSharePackage) async throws -> ImportedSharePackage {
+        guard package.version == 1 else { throw LocalWaveError.unsupportedPackage }
+        guard let channel else { throw LocalWaveError.invalidChannelCode }
+        let sender = try await resolvePeer(package.senderId)
+        let attachment = try await crypto.decryptAttachment(package.envelope, from: sender, channel: channel)
+        let verifiedHash = Data(SHA256.hash(data: attachment.data))
+        upsertTransfer(TransferRecord(
+            id: package.packageId,
+            peerId: package.senderId,
+            fileName: attachment.fileName,
+            byteCount: attachment.data.count,
+            route: .nativeShare,
+            status: .delivered,
+            updatedAt: Date(),
+            failureReason: nil
+        ))
+        return ImportedSharePackage(transferId: package.packageId, senderId: package.senderId, attachment: attachment, verifiedHash: verifiedHash)
+    }
+
+    public func verifyPeer(_ peerId: PeerID, fingerprint: String) async throws {
+        var peer = try await resolvePeer(peerId)
+        guard peer.fingerprint.caseInsensitiveCompare(fingerprint.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame else {
+            peer.trustState = .changed
+            try? await peerRepository.upsert(peer)
+            throw LocalWaveError.fingerprintMismatch
+        }
+        peer.trustState = .verified
+        try await peerRepository.upsert(peer)
+        peers = peers.map { $0.id == peerId ? peer : $0 }
+        publishPeers()
     }
 
     public func observePeers() -> AsyncStream<[PeerProfile]> {
@@ -112,6 +195,13 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         AsyncStream { continuation in
             messageContinuations[peerId, default: []].append(continuation)
             Task { await self.publishMessages(peerId: peerId) }
+        }
+    }
+
+    public func observeTransfers() -> AsyncStream<[TransferRecord]> {
+        AsyncStream { continuation in
+            transferContinuations.append(continuation)
+            continuation.yield(transfers)
         }
     }
 
@@ -146,8 +236,32 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
             publishPeers()
         case .packet(let data, _):
             await handlePacketData(data)
+        case .bulk(let data, _):
+            await handleBulkData(data)
         case .stateChanged(let state):
             transportState = state
+            publishState()
+        }
+    }
+
+    private func handleBulkData(_ data: Data) async {
+        guard let channel else { return }
+        do {
+            let envelope = try SecureEnvelopeCodec.decode(AttachmentEnvelope.self, from: data)
+            let sender = try await resolvePeer(envelope.senderId)
+            let attachment = try await crypto.decryptAttachment(envelope, from: sender, channel: channel)
+            upsertTransfer(TransferRecord(
+                id: envelope.transferId,
+                peerId: sender.id,
+                fileName: attachment.fileName,
+                byteCount: attachment.data.count,
+                route: .l2cap,
+                status: .delivered,
+                updatedAt: Date(),
+                failureReason: nil
+            ))
+        } catch {
+            transportState.lastError = "encrypted attachment rejected"
             publishState()
         }
     }
@@ -198,6 +312,24 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         return replayCounter
     }
 
+    private func resolvePeer(_ peerId: PeerID) async throws -> PeerProfile {
+        let knownPeer = peers.first { $0.id == peerId }
+        let storedPeer = try await peerRepository.peer(id: peerId)
+        guard let peer = knownPeer ?? storedPeer else {
+            throw LocalWaveError.peerUnavailable
+        }
+        return peer
+    }
+
+    private func upsertTransfer(_ transfer: TransferRecord) {
+        if let index = transfers.firstIndex(where: { $0.id == transfer.id }) {
+            transfers[index] = transfer
+        } else {
+            transfers.append(transfer)
+        }
+        publishTransfers()
+    }
+
     private func publishPeers() {
         for continuation in peerContinuations {
             continuation.yield(peers)
@@ -207,6 +339,12 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     private func publishState() {
         for continuation in stateContinuations {
             continuation.yield(transportState)
+        }
+    }
+
+    private func publishTransfers() {
+        for continuation in transferContinuations {
+            continuation.yield(transfers)
         }
     }
 

@@ -4,6 +4,7 @@ import Foundation
 public enum BluetoothTransportEvent: Sendable {
     case peerDiscovered(PeerProfile)
     case packet(Data, from: PeerID?)
+    case bulk(Data, from: PeerID?)
     case stateChanged(TransportState)
 }
 
@@ -11,6 +12,7 @@ public protocol BluetoothTransportProtocol: AnyObject, Sendable {
     func start(channel: ChannelCode, identity: LocalIdentity) async throws
     func stop() async
     func send(_ data: Data, kind: TransportPacketKind, to peerId: PeerID) async throws
+    func sendBulk(_ data: Data, to peerId: PeerID) async throws
     func observeEvents() -> AsyncStream<BluetoothTransportEvent>
 }
 
@@ -20,6 +22,7 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
         var displayName: String
         var fingerprint: String
         var agreementPublicKey: Data
+        var l2capPSM: UInt16?
     }
 
     private let queue = DispatchQueue(label: "com.localwave.bluetooth.transport")
@@ -36,6 +39,11 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
     private var discoveredRSSI: [UUID: Int] = [:]
     private var discoveredPeripherals: [PeerID: CBPeripheral] = [:]
     private var packetCharacteristics: [PeerID: CBCharacteristic] = [:]
+    private var l2capPSMByPeer: [PeerID: UInt16] = [:]
+    private var l2capChannels: [PeerID: CBL2CAPChannel] = [:]
+    private var l2capOpenContinuations: [PeerID: CheckedContinuation<CBL2CAPChannel, Error>] = [:]
+    private var l2capReadBuffers: [ObjectIdentifier: Data] = [:]
+    private var localL2CAPPSM: UInt16?
     private var pendingPacketCharacteristics: [UUID: CBCharacteristic] = [:]
     private var pendingWrites: [PeerID: [Data]] = [:]
 
@@ -77,10 +85,23 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
             discoveredRSSI.removeAll()
             discoveredPeripherals.removeAll()
             packetCharacteristics.removeAll()
+            l2capPSMByPeer.removeAll()
+            l2capChannels.removeAll()
+            l2capOpenContinuations.removeAll()
+            localL2CAPPSM = nil
             pendingPacketCharacteristics.removeAll()
             pendingWrites.removeAll()
             updateState(TransportState())
         }
+    }
+
+    public func sendBulk(_ data: Data, to peerId: PeerID) async throws {
+        guard data.count <= OutboundAttachment.maxNativeShareBytes else {
+            throw LocalWaveError.attachmentTooLarge(limitBytes: OutboundAttachment.maxNativeShareBytes)
+        }
+
+        let channel = try await l2capChannel(for: peerId)
+        try await writeBulk(data, to: channel)
     }
 
     public func send(_ data: Data, kind: TransportPacketKind, to peerId: PeerID) async throws {
@@ -102,8 +123,9 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
 
                 do {
                     let chunks = try self.framer.frame(body: data, kind: kind, conversationId: UUID()).map { self.framer.encode($0) }
+                    let writeType: CBCharacteristicWriteType = characteristic.properties.contains(.write) ? .withResponse : .withoutResponse
                     chunks.forEach { chunk in
-                        peripheral.writeValue(chunk, for: characteristic, type: .withoutResponse)
+                        peripheral.writeValue(chunk, for: characteristic, type: writeType)
                     }
                     continuation.resume()
                 } catch {
@@ -145,19 +167,19 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
         guard let peripheralManager, peripheralManager.state == .poweredOn, let profile else { return }
         let packetCharacteristic = CBMutableCharacteristic(
             type: profile.packetCharacteristicUUID,
-            properties: [.writeWithoutResponse, .notify],
+            properties: [.write, .writeWithoutResponse, .notify],
             value: nil,
             permissions: [.writeable]
         )
         let presenceCharacteristic = CBMutableCharacteristic(
             type: profile.presenceCharacteristicUUID,
             properties: [.read],
-            value: presenceData(),
+            value: nil,
             permissions: [.readable]
         )
         let wakeCharacteristic = CBMutableCharacteristic(
             type: profile.wakeCharacteristicUUID,
-            properties: [.writeWithoutResponse],
+            properties: [.write, .writeWithoutResponse],
             value: nil,
             permissions: [.writeable]
         )
@@ -184,9 +206,50 @@ public final class LocalWaveBluetoothTransport: NSObject, BluetoothTransportProt
             peerId: identity.peerId,
             displayName: identity.displayName,
             fingerprint: identity.fingerprint,
-            agreementPublicKey: identity.agreementPublicKey
+            agreementPublicKey: identity.agreementPublicKey,
+            l2capPSM: localL2CAPPSM
         )
         return try? JSONEncoder().encode(presence)
+    }
+
+    private func l2capChannel(for peerId: PeerID) async throws -> CBL2CAPChannel {
+        if let channel = l2capChannels[peerId] {
+            return channel
+        }
+        guard let peripheral = discoveredPeripherals[peerId],
+              let psm = l2capPSMByPeer[peerId] else {
+            throw LocalWaveError.transferUnavailable("This peer has not advertised a BLE L2CAP channel.")
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                self.l2capOpenContinuations[peerId] = continuation
+                peripheral.openL2CAPChannel(CBL2CAPPSM(psm))
+            }
+        }
+    }
+
+    private func writeBulk(_ data: Data, to channel: CBL2CAPChannel) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                var length = UInt32(data.count).bigEndian
+                var payload = withUnsafeBytes(of: &length) { Data($0) }
+                payload.append(data)
+                channel.outputStream.open()
+                var offset = 0
+                while offset < payload.count {
+                    let written = payload.withUnsafeBytes { bytes in
+                        guard let base = bytes.bindMemory(to: UInt8.self).baseAddress else { return -1 }
+                        return channel.outputStream.write(base.advanced(by: offset), maxLength: payload.count - offset)
+                    }
+                    guard written > 0 else {
+                        continuation.resume(throwing: LocalWaveError.transferUnavailable("BLE L2CAP stream write did not complete."))
+                        return
+                    }
+                    offset += written
+                }
+                continuation.resume()
+            }
+        }
     }
 
 }
@@ -227,6 +290,23 @@ extension LocalWaveBluetoothTransport: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard let profile else { return }
         peripheral.discoverServices([profile.serviceUUID])
+    }
+
+    public func centralManager(_ central: CBCentralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {
+        guard let channel else {
+            if let peerId = l2capOpenContinuations.keys.first {
+                l2capOpenContinuations[peerId]?.resume(throwing: error ?? LocalWaveError.transferUnavailable("BLE L2CAP channel could not be opened."))
+                l2capOpenContinuations[peerId] = nil
+            }
+            return
+        }
+        guard let peerId = discoveredPeripherals.first(where: { $0.value.identifier == channel.peer.identifier })?.key else { return }
+        l2capChannels[peerId] = channel
+        channel.inputStream.delegate = self
+        channel.inputStream.schedule(in: .main, forMode: .default)
+        channel.inputStream.open()
+        l2capOpenContinuations[peerId]?.resume(returning: channel)
+        l2capOpenContinuations[peerId] = nil
     }
 
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -298,6 +378,7 @@ extension LocalWaveBluetoothTransport: CBPeripheralDelegate {
             return
         }
         discoveredPeripherals[presence.peerId] = peripheral
+        l2capPSMByPeer[presence.peerId] = presence.l2capPSM
         if let packetCharacteristic = pendingPacketCharacteristics[peripheral.identifier] {
             packetCharacteristics[presence.peerId] = packetCharacteristic
         }
@@ -317,6 +398,7 @@ extension LocalWaveBluetoothTransport: CBPeripheralManagerDelegate {
     public func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
+            peripheral.publishL2CAPChannel(withEncryption: false)
             startAdvertisingIfPossible()
         case .unauthorized:
             updateState(TransportState(permission: .denied, lastError: LocalWaveError.bluetoothPermissionDenied.localizedDescription))
@@ -333,6 +415,25 @@ extension LocalWaveBluetoothTransport: CBPeripheralManagerDelegate {
             return
         }
         advertiseService()
+    }
+
+    public func peripheralManager(_ peripheral: CBPeripheralManager, didPublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?) {
+        if let error {
+            updateState(TransportState(permission: .allowed, lastError: error.localizedDescription))
+            return
+        }
+        localL2CAPPSM = UInt16(PSM)
+    }
+
+    public func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?) {
+        guard let channel else {
+            updateState(TransportState(permission: .allowed, lastError: error?.localizedDescription ?? "Incoming BLE L2CAP channel failed."))
+            return
+        }
+        channel.inputStream.delegate = self
+        channel.inputStream.schedule(in: .main, forMode: .default)
+        channel.inputStream.open()
+        channel.outputStream.open()
     }
 
     public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
@@ -360,5 +461,33 @@ extension LocalWaveBluetoothTransport: CBPeripheralManagerDelegate {
                 peripheral.respond(to: request, withResult: .attributeNotFound)
             }
         }
+    }
+}
+
+extension LocalWaveBluetoothTransport: StreamDelegate {
+    public func stream(_ aStream: Stream, handle eventCode: Stream.Event) {
+        guard eventCode == .hasBytesAvailable, let input = aStream as? InputStream else { return }
+        let streamId = ObjectIdentifier(input)
+        var readBuffer = l2capReadBuffers[streamId] ?? Data()
+        var scratch = [UInt8](repeating: 0, count: 16 * 1024)
+        while input.hasBytesAvailable {
+            let count = input.read(&scratch, maxLength: scratch.count)
+            guard count > 0 else { break }
+            readBuffer.append(contentsOf: scratch.prefix(count))
+        }
+
+        while readBuffer.count >= 4 {
+            let length = readBuffer.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let bodyLength = Int(length)
+            guard bodyLength > 0, bodyLength <= OutboundAttachment.maxNativeShareBytes else {
+                l2capReadBuffers[streamId] = nil
+                return
+            }
+            guard readBuffer.count >= 4 + bodyLength else { break }
+            let body = readBuffer.subdata(in: 4..<(4 + bodyLength))
+            readBuffer.removeSubrange(0..<(4 + bodyLength))
+            emit(.bulk(body, from: nil))
+        }
+        l2capReadBuffers[streamId] = readBuffer
     }
 }

@@ -1,5 +1,8 @@
 package com.localwave.feature.chat
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +17,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,9 +29,31 @@ import com.localwave.design.components.PermissionBanner
 import com.localwave.design.components.SignalStrengthView
 import com.localwave.design.components.WakeButton
 
+import kotlinx.coroutines.launch
+
 @Composable
 fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val directAttachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch { viewModel.sendAttachment(context, uri) }
+    }
+    val sharePackagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val packageUri = viewModel.exportSharePackage(context, uri) ?: return@launch
+                val share = Intent(Intent.ACTION_SEND)
+                    .setType("application/octet-stream")
+                    .putExtra(Intent.EXTRA_STREAM, packageUri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(Intent.createChooser(share, "Share encrypted LocalWave package"))
+            }
+        }
+    }
+    val importPackagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { viewModel.importSharePackage(context, uri) }
+    }
     Column(Modifier.fillMaxSize()) {
         ChatHeader(
             name = state.peer?.displayName ?: "Nearby person",
@@ -43,6 +70,11 @@ fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit)
         LazyColumn(Modifier.weight(1f).padding(LWSpacing.screen), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(state.messages, key = { it.id.toString() }) { message -> MessageBubble(message) }
         }
+        AttachmentActions(
+            sendDirect = { directAttachmentPicker.launch("*/*") },
+            sharePackage = { sharePackagePicker.launch("*/*") },
+            importPackage = { importPackagePicker.launch(arrayOf("application/octet-stream", "*/*")) }
+        )
         MessageComposer(state.draft, state.canSend, viewModel::updateDraft, viewModel::sendDraft)
     }
 }
@@ -57,6 +89,15 @@ fun ChatHeader(name: String, status: String, rssi: Int?, wakeState: com.localwav
         }
         rssi?.let { SignalStrengthView(it) }
         WakeButton(wakeState, onWake)
+    }
+}
+
+@Composable
+fun AttachmentActions(sendDirect: () -> Unit, sharePackage: () -> Unit, importPackage: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = sendDirect) { Text("Send File") }
+        Button(onClick = sharePackage) { Text("Share Package") }
+        Button(onClick = importPackage) { Text("Import") }
     }
 }
 

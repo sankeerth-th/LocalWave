@@ -7,8 +7,13 @@ public protocol LocalWaveEngineProtocol: AnyObject, Sendable {
     func switchChannel(_ channel: ChannelCode) async throws
     func sendMessage(text: String, to peerId: PeerID) async throws -> MessageID
     func sendWake(to peerId: PeerID) async throws
+    func sendAttachment(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> TransferID
+    func exportEncryptedSharePackage(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> EncryptedSharePackage
+    func importEncryptedSharePackage(_ package: EncryptedSharePackage) async throws -> ImportedSharePackage
+    func verifyPeer(_ peerId: PeerID, fingerprint: String) async throws
     func observePeers() -> AsyncStream<[PeerProfile]>
     func observeMessages(peerId: PeerID) -> AsyncStream<[ChatMessage]>
+    func observeTransfers() -> AsyncStream<[TransferRecord]>
     func observeTransportState() -> AsyncStream<TransportState>
     func localIdentity() async throws -> LocalIdentity
 }
@@ -16,6 +21,8 @@ public protocol LocalWaveEngineProtocol: AnyObject, Sendable {
 public protocol CryptoServiceProtocol: Sendable {
     func encryptMessage(_ text: String, to peer: PeerProfile, counter: UInt64, channel: ChannelCode) async throws -> MessageEnvelope
     func decryptMessage(_ envelope: MessageEnvelope, from peer: PeerProfile, channel: ChannelCode) async throws -> String
+    func encryptAttachment(_ attachment: OutboundAttachment, to peer: PeerProfile, counter: UInt64, channel: ChannelCode) async throws -> AttachmentEnvelope
+    func decryptAttachment(_ envelope: AttachmentEnvelope, from peer: PeerProfile, channel: ChannelCode) async throws -> OutboundAttachment
 }
 
 public protocol MessageRepositoryProtocol: Sendable {

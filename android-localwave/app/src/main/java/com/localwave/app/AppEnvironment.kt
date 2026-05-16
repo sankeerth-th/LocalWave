@@ -17,6 +17,8 @@ import com.localwave.core.diagnostics.RedactedLogger
 import com.localwave.core.model.TransportState
 import com.localwave.core.notifications.WakeNotificationManager
 import com.localwave.core.persistence.LocalWaveDatabase
+import com.localwave.core.persistence.LOCALWAVE_MIGRATION_1_2
+import com.localwave.core.persistence.LOCALWAVE_MIGRATION_2_3
 import com.localwave.core.persistence.RoomMessageRepository
 import com.localwave.core.persistence.RoomPeerRepository
 import com.localwave.core.protocol.LocalWaveEngine
@@ -33,7 +35,9 @@ data class AppEnvironment(
     companion object {
         fun create(context: Context): AppEnvironment {
             val appContext = context.applicationContext
-            val database = Room.databaseBuilder(appContext, LocalWaveDatabase::class.java, "localwave.db").build()
+            val database = Room.databaseBuilder(appContext, LocalWaveDatabase::class.java, "localwave.db")
+                .addMigrations(LOCALWAVE_MIGRATION_1_2, LOCALWAVE_MIGRATION_2_3)
+                .build()
             val identityStore = AndroidKeystoreIdentityKeyStore(appContext)
             val crypto = SessionCrypto(identityStore)
             val logger = RedactedLogger()

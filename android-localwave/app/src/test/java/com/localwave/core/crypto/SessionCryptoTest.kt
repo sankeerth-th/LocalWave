@@ -1,13 +1,23 @@
 package com.localwave.core.crypto
 
 import com.localwave.core.model.ChannelCode
+import com.localwave.core.model.DeliveryRoute
+import com.localwave.core.model.EncryptedSharePackage
+import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
+import com.localwave.core.model.RelayChunk
+import com.localwave.core.model.RelayChunkStore
+import com.localwave.core.protocol.ProtocolJson
+import java.util.UUID
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.fail
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class SessionCryptoTest {
     @Test
     fun messageEnvelopeDecryptsWithMatchingPeerKey() = runTest {
@@ -23,6 +33,120 @@ class SessionCryptoTest {
         assertEquals("Shift change at 06:30", plaintext)
         assertEquals("alice", envelope.senderId.value)
         assertEquals("bob", envelope.recipientId.value)
+    }
+
+    @Test
+    fun encodedMessageEnvelopeDecryptsAfterJsonRoundTrip() = runTest {
+        val aliceCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.alice))
+        val bobCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.bob))
+        val channel = ChannelCode("DOCK-A-17")
+
+        val envelope = aliceCrypto.encryptMessage("Inbound trailer cleared", TestIdentities.bobPeer, 10, channel)
+        val encoded = ProtocolJson.encodeMessageEnvelope(envelope)
+        val decoded = ProtocolJson.decodeMessageEnvelope(encoded)
+        val plaintext = bobCrypto.decryptMessage(decoded, TestIdentities.alicePeer, channel)
+
+        assertEquals("Inbound trailer cleared", plaintext)
+        assertEquals(envelope.timestampEpochMillis, decoded.timestampEpochMillis)
+    }
+
+    @Test
+    fun encodedWakeEnvelopeDecryptsAfterJsonRoundTrip() = runTest {
+        val aliceCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.alice))
+        val bobCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.bob))
+        val channel = ChannelCode("DOCK-A-17")
+
+        val envelope = aliceCrypto.encryptWake(TestIdentities.bobPeer, 11, channel)
+        val encoded = ProtocolJson.encodeWakeEnvelope(envelope)
+        val decoded = ProtocolJson.decodeWakeEnvelope(encoded)
+
+        bobCrypto.decryptWake(decoded, TestIdentities.alicePeer, channel)
+        assertEquals(envelope.timestampEpochMillis, decoded.timestampEpochMillis)
+    }
+
+    @Test
+    fun encodedAttachmentEnvelopeDecryptsAfterJsonRoundTrip() = runTest {
+        val aliceCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.alice))
+        val bobCrypto = SessionCrypto(InMemoryIdentityKeyStore(TestIdentities.bob))
+        val channel = ChannelCode("DOCK-A-17")
+        val attachment = OutboundAttachment(
+            fileName = "dock-photo.jpg",
+            contentType = "image/jpeg",
+            data = "encrypted-image-bytes".encodeToByteArray()
+        )
+
+        val envelope = aliceCrypto.encryptAttachment(attachment, TestIdentities.bobPeer, 12, channel)
+        val encoded = ProtocolJson.encodeAttachmentEnvelope(envelope)
+        val decoded = ProtocolJson.decodeAttachmentEnvelope(encoded)
+        val decrypted = bobCrypto.decryptAttachment(decoded, TestIdentities.alicePeer, channel)
+
+        assertEquals(attachment.fileName, decrypted.fileName)
+        assertEquals(attachment.contentType, decrypted.contentType)
+        assertEquals(attachment.data.decodeToString(), decrypted.data.decodeToString())
+        assertEquals(envelope.transferId, decoded.transferId)
+    }
+
+    @Test
+    fun encryptedSharePackageRoundTripsThroughProtocolJson() {
+        val envelope = com.localwave.core.model.AttachmentEnvelope(
+            senderId = TestIdentities.alice.identity.peerId,
+            recipientId = TestIdentities.bob.identity.peerId,
+            timestampEpochMillis = 1234,
+            transferId = UUID.randomUUID(),
+            replayCounter = 1uL,
+            nonce = byteArrayOf(1, 2, 3),
+            ciphertext = byteArrayOf(4, 5, 6),
+            tag = byteArrayOf(7, 8, 9)
+        )
+        val packageFile = EncryptedSharePackage(
+            packageId = envelope.transferId,
+            createdAtEpochMillis = envelope.timestampEpochMillis,
+            route = DeliveryRoute.NATIVE_SHARE,
+            senderId = envelope.senderId,
+            recipientId = envelope.recipientId,
+            envelope = envelope
+        )
+
+        val decoded = ProtocolJson.decodeEncryptedSharePackage(ProtocolJson.encodeEncryptedSharePackage(packageFile))
+
+        assertEquals(packageFile.packageId, decoded.packageId)
+        assertEquals(packageFile.route, decoded.route)
+        assertEquals(packageFile.envelope.transferId, decoded.envelope.transferId)
+    }
+
+    @Test
+    fun inviteAuthenticationRejectsWrongPhrase() {
+        val channel = ChannelCode("DOCK-A-17")
+        val nonce = "first-contact-nonce".encodeToByteArray()
+        val proof = InviteAuthenticator.makeProof(
+            local = TestIdentities.alice.identity,
+            remote = TestIdentities.bobPeer,
+            channel = channel,
+            invitePhrase = "correct horse battery",
+            nonce = nonce
+        )
+
+        assertEquals(true, InviteAuthenticator.verify(proof, TestIdentities.bob.identity, TestIdentities.alicePeer, channel, "correct horse battery"))
+        assertEquals(false, InviteAuthenticator.verify(proof, TestIdentities.bob.identity, TestIdentities.alicePeer, channel, "wrong invite phrase"))
+    }
+
+    @Test
+    fun relayStoreKeepsOnlyOpaqueEncryptedChunks() {
+        val chunk = RelayChunk(
+            id = UUID.randomUUID(),
+            sourcePeerId = TestIdentities.alice.identity.peerId,
+            destinationPeerId = TestIdentities.bob.identity.peerId,
+            route = DeliveryRoute.FIXED_RELAY,
+            expiresAtEpochMillis = System.currentTimeMillis() + 60_000,
+            payload = "ciphertext-only".encodeToByteArray()
+        )
+        val store = RelayChunkStore(maxChunks = 4)
+
+        store.insert(chunk)
+        val available = store.chunksFor(TestIdentities.bob.identity.peerId)
+
+        assertEquals(1, available.size)
+        assertEquals("ciphertext-only", available.single().payload.decodeToString())
     }
 
     @Test

@@ -5,7 +5,9 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
     private var peerContinuations: [UUID: AsyncStream<[PeerProfile]>.Continuation] = [:]
     private var transportContinuations: [UUID: AsyncStream<TransportState>.Continuation] = [:]
     private var messageContinuations: [PeerID: [UUID: AsyncStream<[ChatMessage]>.Continuation]] = [:]
+    private var transferContinuations: [UUID: AsyncStream<[TransferRecord]>.Continuation] = [:]
     private var messagesByPeer: [PeerID: [ChatMessage]] = [:]
+    private var transfers: [TransferRecord] = []
     private var peers: [PeerProfile] = []
     private var transportState = TransportState()
     private var simulationTask: Task<Void, Never>?
@@ -121,6 +123,84 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
         }
     }
 
+    public func sendAttachment(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> TransferID {
+        let peer = lock.withLock { peers.first { $0.id == peerId } }
+        guard peer?.state == .available || peer?.state == .connecting else {
+            throw LocalWaveError.peerUnavailable
+        }
+        let transferId = UUID()
+        let transfer = TransferRecord(
+            id: transferId,
+            peerId: peerId,
+            fileName: attachment.fileName,
+            byteCount: attachment.data.count,
+            route: .l2cap,
+            status: .delivered,
+            updatedAt: Date(),
+            failureReason: nil
+        )
+        lock.withLock {
+            transfers.append(transfer)
+        }
+        broadcastTransfers()
+        return transferId
+    }
+
+    public func exportEncryptedSharePackage(_ attachment: OutboundAttachment, to peerId: PeerID) async throws -> EncryptedSharePackage {
+        let peer = lock.withLock { peers.first { $0.id == peerId } }
+        guard peer != nil else { throw LocalWaveError.peerUnavailable }
+        let packageId = UUID()
+        let envelope = AttachmentEnvelope(
+            version: 1,
+            senderId: identity.peerId,
+            recipientId: peerId,
+            timestamp: Date(),
+            transferId: packageId,
+            replayCounter: 0,
+            nonce: Data(),
+            ciphertext: attachment.data,
+            tag: Data()
+        )
+        let package = EncryptedSharePackage(
+            version: 1,
+            packageId: packageId,
+            createdAt: envelope.timestamp,
+            route: .nativeShare,
+            senderId: identity.peerId,
+            recipientId: peerId,
+            envelope: envelope
+        )
+        lock.withLock {
+            transfers.append(TransferRecord(id: packageId, peerId: peerId, fileName: attachment.fileName, byteCount: attachment.data.count, route: .nativeShare, status: .exported, updatedAt: Date(), failureReason: nil))
+        }
+        broadcastTransfers()
+        return package
+    }
+
+    public func importEncryptedSharePackage(_ package: EncryptedSharePackage) async throws -> ImportedSharePackage {
+        guard package.version == 1 else { throw LocalWaveError.unsupportedPackage }
+        let attachment = try OutboundAttachment(fileName: "Mock Import", contentType: "application/octet-stream", data: package.envelope.ciphertext)
+        lock.withLock {
+            transfers.append(TransferRecord(id: package.packageId, peerId: package.senderId, fileName: attachment.fileName, byteCount: attachment.data.count, route: .nativeShare, status: .delivered, updatedAt: Date(), failureReason: nil))
+        }
+        broadcastTransfers()
+        return ImportedSharePackage(transferId: package.packageId, senderId: package.senderId, attachment: attachment, verifiedHash: Data())
+    }
+
+    public func verifyPeer(_ peerId: PeerID, fingerprint: String) async throws {
+        var didMatch = false
+        lock.withLock {
+            if let index = peers.firstIndex(where: { $0.id == peerId }) {
+                didMatch = peers[index].fingerprint.caseInsensitiveCompare(fingerprint.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                peers[index].trustState = didMatch ? .verified : .changed
+            }
+        }
+        broadcastPeers()
+        if !didMatch {
+            throw LocalWaveError.fingerprintMismatch
+        }
+    }
+
     public func observePeers() -> AsyncStream<[PeerProfile]> {
         AsyncStream { continuation in
             let id = UUID()
@@ -164,6 +244,22 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
             continuation.onTermination = { [weak self] _ in
                 self?.lock.withLock {
                     self?.transportContinuations.removeValue(forKey: id)
+                }
+            }
+        }
+    }
+
+    public func observeTransfers() -> AsyncStream<[TransferRecord]> {
+        AsyncStream { continuation in
+            let id = UUID()
+            let snapshot = lock.withLock { () -> [TransferRecord] in
+                transferContinuations[id] = continuation
+                return transfers
+            }
+            continuation.yield(snapshot)
+            continuation.onTermination = { [weak self] _ in
+                self?.lock.withLock {
+                    self?.transferContinuations.removeValue(forKey: id)
                 }
             }
         }
@@ -256,6 +352,12 @@ public final class MockLocalWaveEngine: LocalWaveEngineProtocol, @unchecked Send
     private func broadcastAllMessages() {
         let peerIDs = lock.withLock { Array(messagesByPeer.keys) }
         peerIDs.forEach { broadcastMessages(peerId: $0) }
+    }
+
+    private func broadcastTransfers() {
+        let snapshot = lock.withLock { transfers }
+        let continuations = lock.withLock { Array(transferContinuations.values) }
+        continuations.forEach { $0.yield(snapshot) }
     }
 }
 

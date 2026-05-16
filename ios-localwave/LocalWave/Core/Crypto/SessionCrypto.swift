@@ -114,6 +114,62 @@ public actor SessionCrypto: CryptoServiceProtocol {
         _ = try await decryptSecureEnvelope(secure, from: peer, channel: channel)
     }
 
+    public func encryptAttachment(
+        _ attachment: OutboundAttachment,
+        to peer: PeerProfile,
+        counter: UInt64,
+        channel: ChannelCode
+    ) async throws -> AttachmentEnvelope {
+        let transferId = UUID()
+        let plaintext = AttachmentPlaintext(
+            fileName: attachment.fileName,
+            contentType: attachment.contentType,
+            byteCount: attachment.data.count,
+            sha256: Data(SHA256.hash(data: attachment.data)),
+            payload: attachment.data
+        )
+        let encoded = try SecureEnvelopeCodec.encode(plaintext)
+        let secure = try await encryptSecureEnvelope(
+            encoded,
+            kind: .attachment,
+            messageId: transferId,
+            to: peer,
+            counter: counter,
+            channel: channel
+        )
+        return AttachmentEnvelope(
+            version: secure.version,
+            senderId: secure.senderId,
+            recipientId: secure.recipientId,
+            timestamp: secure.timestamp,
+            transferId: transferId,
+            replayCounter: secure.replayCounter,
+            nonce: secure.nonce,
+            ciphertext: secure.ciphertext,
+            tag: secure.tag
+        )
+    }
+
+    public func decryptAttachment(_ envelope: AttachmentEnvelope, from peer: PeerProfile, channel: ChannelCode) async throws -> OutboundAttachment {
+        let secure = SecureEnvelope(
+            version: envelope.version,
+            kind: .attachment,
+            senderId: envelope.senderId,
+            recipientId: envelope.recipientId,
+            timestamp: envelope.timestamp,
+            messageId: envelope.transferId,
+            replayCounter: envelope.replayCounter,
+            nonce: envelope.nonce,
+            ciphertext: envelope.ciphertext,
+            tag: envelope.tag
+        )
+        let data = try await decryptSecureEnvelope(secure, from: peer, channel: channel)
+        let plaintext = try SecureEnvelopeCodec.decode(AttachmentPlaintext.self, from: data)
+        guard plaintext.byteCount == plaintext.payload.count else { throw LocalWaveError.malformedPacket }
+        guard Data(SHA256.hash(data: plaintext.payload)) == plaintext.sha256 else { throw LocalWaveError.decryptionFailed }
+        return try OutboundAttachment(fileName: plaintext.fileName, contentType: plaintext.contentType, data: plaintext.payload)
+    }
+
     public func encryptSecureEnvelope(
         _ plaintext: Data,
         kind: SecureEnvelopeKind,
@@ -124,7 +180,7 @@ public actor SessionCrypto: CryptoServiceProtocol {
     ) async throws -> SecureEnvelope {
         guard let peerPublicKeyData = peer.publicKeyData else { throw LocalWaveError.peerUnavailable }
         let keyPair = try await identityStore.keyPair()
-        let timestamp = Date()
+        let timestamp = Self.currentWireTimestamp()
         let envelopeSkeleton = SecureEnvelope(
             kind: kind,
             senderId: keyPair.identity.peerId,
@@ -228,6 +284,11 @@ public actor SessionCrypto: CryptoServiceProtocol {
         return data
     }
 
+    private static func currentWireTimestamp() -> Date {
+        let milliseconds = UInt64(Date().timeIntervalSince1970 * 1_000)
+        return Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
+    }
+
     private static func utf8Field(_ value: String) -> Data {
         var data = UInt32(value.utf8.count).bigEndianData
         data.append(contentsOf: value.utf8)
@@ -239,5 +300,88 @@ private extension FixedWidthInteger {
     var bigEndianData: Data {
         var value = self.bigEndian
         return withUnsafeBytes(of: &value) { Data($0) }
+    }
+}
+
+public enum InviteAuthenticator {
+    public static func makeProof(
+        local: LocalIdentity,
+        remote: PeerProfile,
+        channel: ChannelCode,
+        invitePhrase: String,
+        nonce: Data = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    ) throws -> InviteAuthProof {
+        let key = try inviteKey(channel: channel, invitePhrase: invitePhrase)
+        let proof = HMAC<SHA256>.authenticationCode(
+            for: transcript(localId: local.peerId, remoteId: remote.id, channel: channel, localFingerprint: local.fingerprint, remoteFingerprint: remote.fingerprint, nonce: nonce),
+            using: key
+        )
+        return InviteAuthProof(senderId: local.peerId, recipientId: remote.id, nonce: nonce, proof: Data(proof))
+    }
+
+    public static func verify(
+        _ proof: InviteAuthProof,
+        local: LocalIdentity,
+        remote: PeerProfile,
+        channel: ChannelCode,
+        invitePhrase: String
+    ) throws -> Bool {
+        guard proof.senderId == remote.id, proof.recipientId == local.peerId else { return false }
+        let expected = try makeProof(local: remoteIdentity(from: remote), remote: PeerProfile(
+            id: local.peerId,
+            displayName: local.displayName,
+            fingerprint: local.fingerprint,
+            rssi: 0,
+            lastSeen: Date(),
+            state: .available,
+            publicKeyData: local.agreementPublicKey
+        ), channel: channel, invitePhrase: invitePhrase, nonce: proof.nonce)
+        return timingSafeEqual(proof.proof, expected.proof)
+    }
+
+    private static func inviteKey(channel: ChannelCode, invitePhrase: String) throws -> SymmetricKey {
+        let normalizedPhrase = invitePhrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedPhrase.utf8.count >= 12 else {
+            throw LocalWaveError.transferUnavailable("Private channels require an invite phrase of at least 12 characters.")
+        }
+        let input = SymmetricKey(data: Data(normalizedPhrase.utf8))
+        return HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: input,
+            salt: ChannelKeyDerivation.derive(from: channel).hkdfSalt,
+            info: Data("LocalWave.InviteAuth.v1".utf8),
+            outputByteCount: 32
+        )
+    }
+
+    private static func transcript(localId: PeerID, remoteId: PeerID, channel: ChannelCode, localFingerprint: String, remoteFingerprint: String, nonce: Data) -> Data {
+        let orderedPeers = [localId, remoteId].sorted().joined(separator: "|")
+        let orderedFingerprints = [localFingerprint, remoteFingerprint].sorted().joined(separator: "|")
+        var data = Data("LocalWave.FirstContact.v1".utf8)
+        data.append(utf8Field(channel.normalized))
+        data.append(utf8Field(orderedPeers))
+        data.append(utf8Field(orderedFingerprints))
+        data.append(nonce)
+        return data
+    }
+
+    private static func remoteIdentity(from peer: PeerProfile) -> LocalIdentity {
+        LocalIdentity(
+            peerId: peer.id,
+            displayName: peer.displayName,
+            agreementPublicKey: peer.publicKeyData ?? Data(),
+            signingPublicKey: Data(),
+            fingerprint: peer.fingerprint
+        )
+    }
+
+    private static func timingSafeEqual(_ lhs: Data, _ rhs: Data) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
+    }
+
+    private static func utf8Field(_ value: String) -> Data {
+        var data = UInt32(value.utf8.count).bigEndianData
+        data.append(contentsOf: value.utf8)
+        return data
     }
 }

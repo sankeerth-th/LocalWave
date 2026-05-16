@@ -13,6 +13,7 @@ value class PeerId(val value: String) {
 typealias MessageId = UUID
 typealias PacketId = UUID
 typealias ConversationId = UUID
+typealias TransferId = UUID
 
 data class ChannelCode(val rawValue: String) {
     val normalized: String = normalize(rawValue)
@@ -93,6 +94,41 @@ enum class WakeResult {
     FAILED
 }
 
+enum class PeerTrustState {
+    UNVERIFIED,
+    VERIFIED,
+    CHANGED,
+    BLOCKED
+}
+
+enum class TransportCapability {
+    GATT_MESSAGING,
+    L2CAP_COC,
+    NATIVE_SHARE_PACKAGE,
+    FIXED_RELAY,
+    PHONE_RELAY_BEST_EFFORT
+}
+
+enum class DeliveryRoute {
+    GATT,
+    L2CAP,
+    NATIVE_SHARE,
+    FIXED_RELAY,
+    PHONE_RELAY
+}
+
+enum class TransferStatus {
+    QUEUED,
+    NEGOTIATING,
+    SENDING,
+    EXPORTED,
+    IMPORTING,
+    DELIVERED,
+    PENDING,
+    FAILED,
+    EXPIRED
+}
+
 data class PeerProfile(
     val id: PeerId,
     val displayName: String,
@@ -100,6 +136,8 @@ data class PeerProfile(
     val rssi: Int,
     val lastSeenEpochMillis: Long,
     val state: PresenceState,
+    val trustState: PeerTrustState = PeerTrustState.UNVERIFIED,
+    val l2capPsm: Int? = null,
     val publicKeyData: ByteArray? = null
 ) {
     override fun equals(other: Any?): Boolean {
@@ -111,6 +149,8 @@ data class PeerProfile(
             rssi == other.rssi &&
             lastSeenEpochMillis == other.lastSeenEpochMillis &&
             state == other.state &&
+            trustState == other.trustState &&
+            l2capPsm == other.l2capPsm &&
             publicKeyData.contentEquals(other.publicKeyData)
     }
 
@@ -121,6 +161,8 @@ data class PeerProfile(
         result = 31 * result + rssi
         result = 31 * result + lastSeenEpochMillis.hashCode()
         result = 31 * result + state.hashCode()
+        result = 31 * result + trustState.hashCode()
+        result = 31 * result + (l2capPsm ?: 0)
         result = 31 * result + (publicKeyData?.contentHashCode() ?: 0)
         return result
     }
@@ -189,6 +231,115 @@ data class WakeEnvelope(
     val ciphertext: ByteArray,
     val tag: ByteArray
 )
+
+data class OutboundAttachment(
+    val fileName: String,
+    val contentType: String,
+    val data: ByteArray
+) {
+    init {
+        require(fileName.trim().isNotEmpty()) { "Attachment file name is required." }
+        require(data.size <= MAX_NATIVE_SHARE_BYTES) { "Attachments are limited to 50 MB for Bluetooth-safe sharing." }
+    }
+
+    companion object {
+        const val MAX_INLINE_BYTES: Int = 64 * 1024
+        const val MAX_NATIVE_SHARE_BYTES: Int = 50 * 1024 * 1024
+    }
+}
+
+data class AttachmentPlaintext(
+    val fileName: String,
+    val contentType: String,
+    val byteCount: Int,
+    val sha256: ByteArray,
+    val payload: ByteArray
+)
+
+data class AttachmentEnvelope(
+    val version: UByte = 1u,
+    val senderId: PeerId,
+    val recipientId: PeerId,
+    val timestampEpochMillis: Long,
+    val transferId: TransferId,
+    val replayCounter: ULong,
+    val nonce: ByteArray,
+    val ciphertext: ByteArray,
+    val tag: ByteArray
+)
+
+data class EncryptedSharePackage(
+    val version: UByte = 1u,
+    val packageId: TransferId,
+    val createdAtEpochMillis: Long,
+    val route: DeliveryRoute,
+    val senderId: PeerId,
+    val recipientId: PeerId,
+    val envelope: AttachmentEnvelope
+) {
+    companion object {
+        const val FILE_EXTENSION: String = "localwavepkg"
+    }
+}
+
+data class ImportedSharePackage(
+    val transferId: TransferId,
+    val senderId: PeerId,
+    val attachment: OutboundAttachment,
+    val verifiedHash: ByteArray
+)
+
+data class TransferRecord(
+    val id: TransferId,
+    val peerId: PeerId,
+    val fileName: String,
+    val byteCount: Int,
+    val route: DeliveryRoute,
+    val status: TransferStatus,
+    val updatedAtEpochMillis: Long = System.currentTimeMillis(),
+    val failureReason: String? = null
+)
+
+data class RelayChunk(
+    val id: TransferId,
+    val sourcePeerId: PeerId,
+    val destinationPeerId: PeerId,
+    val route: DeliveryRoute,
+    val expiresAtEpochMillis: Long,
+    val payload: ByteArray
+)
+
+class RelayChunkStore(private val maxChunks: Int) {
+    private val chunksById = linkedMapOf<TransferId, RelayChunk>()
+
+    @Synchronized
+    fun insert(chunk: RelayChunk, now: Long = System.currentTimeMillis()) {
+        pruneExpired(now)
+        require(chunk.expiresAtEpochMillis > now) { "Relay chunk is already expired." }
+        chunksById[chunk.id] = chunk
+        while (chunksById.size > maxOf(1, maxChunks)) {
+            val oldest = chunksById.values.minBy { it.expiresAtEpochMillis }
+            chunksById.remove(oldest.id)
+        }
+    }
+
+    @Synchronized
+    fun chunksFor(destinationPeerId: PeerId, now: Long = System.currentTimeMillis()): List<RelayChunk> {
+        pruneExpired(now)
+        return chunksById.values
+            .filter { it.destinationPeerId == destinationPeerId }
+            .sortedBy { it.expiresAtEpochMillis }
+    }
+
+    @Synchronized
+    fun remove(ids: List<TransferId>) {
+        ids.forEach { chunksById.remove(it) }
+    }
+
+    private fun pruneExpired(now: Long) {
+        chunksById.values.removeAll { it.expiresAtEpochMillis <= now }
+    }
+}
 
 data class DeliveryReceipt(
     val messageId: MessageId,

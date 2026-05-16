@@ -12,6 +12,10 @@ public enum LocalWaveError: LocalizedError, Equatable {
     case decryptionFailed
     case replayDetected
     case malformedPacket
+    case attachmentTooLarge(limitBytes: Int)
+    case transferUnavailable(String)
+    case fingerprintMismatch
+    case unsupportedPackage
     case repositoryFailure(String)
 
     public var errorDescription: String? {
@@ -38,9 +42,16 @@ public enum LocalWaveError: LocalizedError, Equatable {
             return "Duplicate encrypted packet rejected."
         case .malformedPacket:
             return "Received packet data is malformed."
+        case .attachmentTooLarge(let limitBytes):
+            return "Attachments are limited to \(limitBytes / (1024 * 1024)) MB for Bluetooth-safe sharing."
+        case .transferUnavailable(let reason):
+            return reason
+        case .fingerprintMismatch:
+            return "This teammate's identity fingerprint does not match."
+        case .unsupportedPackage:
+            return "This LocalWave package cannot be opened by this app version."
         case .repositoryFailure(let message):
             return message
         }
     }
 }
-

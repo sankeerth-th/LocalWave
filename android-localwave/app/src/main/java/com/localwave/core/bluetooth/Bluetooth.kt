@@ -11,6 +11,8 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.AdvertiseCallback
@@ -32,6 +34,7 @@ import androidx.core.content.ContextCompat
 import com.localwave.core.diagnostics.RedactedLogger
 import com.localwave.core.model.ChannelCode
 import com.localwave.core.model.LocalIdentity
+import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
@@ -53,6 +56,7 @@ import java.util.Base64
 sealed interface BluetoothTransportEvent {
     data class PeerDiscovered(val peer: PeerProfile) : BluetoothTransportEvent
     data class Packet(val data: ByteArray, val from: PeerId?) : BluetoothTransportEvent
+    data class Bulk(val data: ByteArray, val from: PeerId?) : BluetoothTransportEvent
     data class StateChanged(val state: TransportState) : BluetoothTransportEvent
 }
 
@@ -60,6 +64,7 @@ interface BluetoothTransport {
     suspend fun start(channel: ChannelCode, identity: LocalIdentity)
     suspend fun stop()
     suspend fun send(data: ByteArray, kind: com.localwave.core.model.TransportPacketKind, to: PeerId)
+    suspend fun sendBulk(data: ByteArray, to: PeerId)
     fun observeEvents(): Flow<BluetoothTransportEvent>
     val state: StateFlow<TransportState>
 }
@@ -114,6 +119,7 @@ class AndroidBleTransport(
     private var advertiserServer: BleAdvertiserServer? = null
     private var scannerClient: BleScannerClient? = null
     private var gattClient: GattClientManager? = null
+    private var l2capManager: BleL2capManager? = null
     private var identity: LocalIdentity? = null
     private var channel: ChannelCode? = null
 
@@ -126,10 +132,11 @@ class AndroidBleTransport(
             return
         }
         val profile = GattProfile.forChannel(channel)
-        advertiserServer = BleAdvertiserServer(context, profile, identity, logger) { data ->
+        l2capManager = BleL2capManager(adapter, logger, events).also { it.start() }
+        advertiserServer = BleAdvertiserServer(context, profile, identity, logger, l2capManager?.localPsm()) { data ->
             events.tryEmit(BluetoothTransportEvent.Packet(data, null))
         }.also { it.start() }
-        gattClient = GattClientManager(context, profile, logger, events)
+        gattClient = GattClientManager(context, profile, logger, events, l2capManager)
         scannerClient = BleScannerClient(context, profile, logger) { result ->
             gattClient?.connect(result)
         }.also { it.start() }
@@ -148,15 +155,21 @@ class AndroidBleTransport(
         scannerClient?.stop()
         advertiserServer?.stop()
         gattClient?.close()
+        l2capManager?.stop()
         scannerClient = null
         advertiserServer = null
         gattClient = null
+        l2capManager = null
         publishState(TransportState())
     }
 
     override suspend fun send(data: ByteArray, kind: com.localwave.core.model.TransportPacketKind, to: PeerId) {
         val chunks = framer.frame(data, kind).map { framer.encode(it) }
         gattClient?.send(chunks, to) ?: throw IllegalStateException("Peer is not connected.")
+    }
+
+    override suspend fun sendBulk(data: ByteArray, to: PeerId) {
+        l2capManager?.send(data, to) ?: throw IllegalStateException("BLE L2CAP is not active.")
     }
 
     override fun observeEvents(): Flow<BluetoothTransportEvent> = events.asSharedFlow()
@@ -186,7 +199,8 @@ private data class PresenceAdvertisement(
     val peerId: String,
     val displayName: String,
     val fingerprint: String,
-    val agreementPublicKey: String
+    val agreementPublicKey: String,
+    val l2capPsm: Int? = null
 )
 
 class BleAdvertiserServer(
@@ -194,6 +208,7 @@ class BleAdvertiserServer(
     private val profile: GattProfile,
     private val identity: LocalIdentity,
     private val logger: RedactedLogger,
+    private val l2capPsm: Int?,
     private val onPacket: (ByteArray) -> Unit
 ) {
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
@@ -278,7 +293,8 @@ class BleAdvertiserServer(
             peerId = identity.peerId.value,
             displayName = identity.displayName,
             fingerprint = identity.fingerprint,
-            agreementPublicKey = Base64.getEncoder().encodeToString(identity.agreementPublicKey)
+            agreementPublicKey = Base64.getEncoder().encodeToString(identity.agreementPublicKey),
+            l2capPsm = l2capPsm
         )
     ).encodeToByteArray()
 }
@@ -321,7 +337,8 @@ class GattClientManager(
     private val context: Context,
     private val profile: GattProfile,
     private val logger: RedactedLogger,
-    private val events: MutableSharedFlow<BluetoothTransportEvent>
+    private val events: MutableSharedFlow<BluetoothTransportEvent>,
+    private val l2capManager: BleL2capManager?
 ) {
     private val scheduler = ConnectionScheduler()
     private val connected = mutableMapOf<PeerId, GattConnection>()
@@ -383,8 +400,10 @@ class GattClientManager(
                 rssi = 0,
                 lastSeenEpochMillis = System.currentTimeMillis(),
                 state = PresenceState.AVAILABLE,
+                l2capPsm = presence.l2capPsm,
                 publicKeyData = Base64.getDecoder().decode(presence.agreementPublicKey)
             )
+            l2capManager?.registerPeer(peerId, gatt.device, presence.l2capPsm)
             events.tryEmit(BluetoothTransportEvent.PeerDiscovered(peer))
         }
 
@@ -394,14 +413,98 @@ class GattClientManager(
     }
 }
 
+class BleL2capManager(
+    private val adapter: BluetoothAdapter?,
+    private val logger: RedactedLogger,
+    private val events: MutableSharedFlow<BluetoothTransportEvent>
+) {
+    private val peers = mutableMapOf<PeerId, Pair<BluetoothDevice, Int>>()
+    private var serverSocket: BluetoothServerSocket? = null
+    private var acceptThread: Thread? = null
+
+    @SuppressLint("MissingPermission")
+    fun start() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        serverSocket = runCatching { adapter?.listenUsingL2capChannel() }
+            .onFailure { logger.record("ble", "l2cap listen failed") }
+            .getOrNull()
+        acceptThread = Thread {
+            while (!Thread.currentThread().isInterrupted) {
+                val socket = runCatching { serverSocket?.accept() }.getOrNull() ?: break
+                Thread { readSocket(socket) }.start()
+            }
+        }.also { it.name = "LocalWave-L2CAP-Accept"; it.start() }
+    }
+
+    fun localPsm(): Int? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) serverSocket?.psm else null
+
+    fun registerPeer(peerId: PeerId, device: BluetoothDevice, psm: Int?) {
+        if (psm != null) peers[peerId] = device to psm
+    }
+
+    @SuppressLint("MissingPermission")
+    fun send(data: ByteArray, to: PeerId) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) throw IllegalStateException("BLE L2CAP requires Android 10 or newer.")
+        val (device, psm) = peers[to] ?: throw IllegalStateException("Peer has not advertised a BLE L2CAP channel.")
+        val socket = device.createL2capChannel(psm)
+        socket.connect()
+        socket.outputStream.use { output ->
+            output.write(java.nio.ByteBuffer.allocate(4).putInt(data.size).array())
+            output.write(data)
+            output.flush()
+        }
+        socket.close()
+    }
+
+    fun stop() {
+        acceptThread?.interrupt()
+        serverSocket?.close()
+        acceptThread = null
+        serverSocket = null
+        peers.clear()
+    }
+
+    private fun readSocket(socket: BluetoothSocket) {
+        socket.use { active ->
+            val input = active.inputStream
+            val header = input.readNBytesCompat(4)
+            if (header.size != 4) return
+            val length = java.nio.ByteBuffer.wrap(header).int
+            if (length <= 0 || length > OutboundAttachment.MAX_NATIVE_SHARE_BYTES) return
+            val payload = input.readNBytesCompat(length)
+            if (payload.size == length) events.tryEmit(BluetoothTransportEvent.Bulk(payload, null))
+        }
+    }
+}
+
+private fun java.io.InputStream.readNBytesCompat(length: Int): ByteArray {
+    val output = ByteArray(length)
+    var offset = 0
+    while (offset < length) {
+        val read = read(output, offset, length - offset)
+        if (read <= 0) break
+        offset += read
+    }
+    return output.copyOf(offset)
+}
+
 class GattConnection(val gatt: BluetoothGatt, private val packetCharacteristic: BluetoothGattCharacteristic) {
     val pendingWrites: ArrayDeque<ByteArray> = ArrayDeque()
 
     @SuppressLint("MissingPermission")
     fun flush() {
         val next = pendingWrites.removeFirstOrNull() ?: return
-        packetCharacteristic.value = next
-        gatt.writeCharacteristic(packetCharacteristic)
+        packetCharacteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        if (Build.VERSION.SDK_INT >= 33) {
+            gatt.writeCharacteristic(packetCharacteristic, next, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        } else {
+            @Suppress("DEPRECATION")
+            run {
+                packetCharacteristic.value = next
+                @Suppress("DEPRECATION")
+                gatt.writeCharacteristic(packetCharacteristic)
+            }
+        }
     }
 }
 
