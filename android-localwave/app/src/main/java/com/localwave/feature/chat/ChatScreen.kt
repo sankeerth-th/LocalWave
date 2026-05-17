@@ -28,6 +28,9 @@ import com.localwave.design.components.MessageBubble
 import com.localwave.design.components.PermissionBanner
 import com.localwave.design.components.SignalStrengthView
 import com.localwave.design.components.WakeButton
+import com.localwave.core.model.DeliveryRoute
+import com.localwave.core.model.TransferRecord
+import com.localwave.core.model.TransferStatus
 
 import kotlinx.coroutines.launch
 
@@ -70,6 +73,9 @@ fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit)
         LazyColumn(Modifier.weight(1f).padding(LWSpacing.screen), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(state.messages, key = { it.id.toString() }) { message -> MessageBubble(message) }
         }
+        state.transfers.firstOrNull()?.let { transfer ->
+            TransferStatusBanner(transfer, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        }
         AttachmentActions(
             sendDirect = { directAttachmentPicker.launch("*/*") },
             sharePackage = { sharePackagePicker.launch("*/*") },
@@ -77,6 +83,37 @@ fun ChatScreen(viewModel: ChatViewModel, engineMode: String, onBack: () -> Unit)
         )
         MessageComposer(state.draft, state.canSend, viewModel::updateDraft, viewModel::sendDraft)
     }
+}
+
+@Composable
+fun TransferStatusBanner(transfer: TransferRecord, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(transfer.statusLabel(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(transfer.routeLabel(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun TransferRecord.statusLabel(): String = when (status) {
+    TransferStatus.QUEUED, TransferStatus.NEGOTIATING, TransferStatus.ANNOUNCED -> "Preparing $fileName"
+    TransferStatus.ACCEPTED, TransferStatus.SESSION_NEGOTIATED, TransferStatus.SENDING, TransferStatus.TRANSFERRING -> "Sending $fileName"
+    TransferStatus.MANIFEST_RECEIVED -> "Receiving encrypted manifest"
+    TransferStatus.WAITING_FOR_PEER -> "Waiting for peer receipt"
+    TransferStatus.WAITING_FOR_RELAY -> "Waiting for relay"
+    TransferStatus.VERIFYING, TransferStatus.RECONSTRUCTING, TransferStatus.DECRYPTING, TransferStatus.IMPORTING -> "Verifying secure transfer"
+    TransferStatus.EXPORTED -> "Encrypted package ready to share"
+    TransferStatus.COMPLETED, TransferStatus.DELIVERED -> "Downloaded"
+    TransferStatus.PENDING -> "Pending"
+    TransferStatus.FAILED -> failureReason ?: "Transfer failed"
+    TransferStatus.EXPIRED -> "Transfer expired"
+    TransferStatus.CANCELLED -> "Transfer cancelled"
+}
+
+private fun TransferRecord.routeLabel(): String = when (route) {
+    DeliveryRoute.L2CAP -> "Route: Direct L2CAP"
+    DeliveryRoute.GATT -> "Route: GATT control only"
+    DeliveryRoute.NATIVE_SHARE -> "Route: Native Share package"
+    DeliveryRoute.FIXED_RELAY -> "Route: Fixed relay"
+    DeliveryRoute.PHONE_RELAY -> "Route: Best-effort phone relay"
 }
 
 @Composable

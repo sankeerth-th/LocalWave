@@ -80,6 +80,30 @@ final class CryptoTests: XCTestCase {
         XCTAssertEqual(decoded.agreementPublicKey, intro.agreementPublicKey)
     }
 
+    func testObjectControlEnvelopeRoundTripsForPieceAck() throws {
+        let objectId = String(repeating: "a", count: 64)
+        let transferId = UUID()
+        let control = ObjectControlEnvelope(
+            kind: .pieceAck,
+            objectId: objectId,
+            senderId: TestIdentities.bob.identity.peerId,
+            recipientId: TestIdentities.alice.identity.peerId,
+            transferId: transferId,
+            pieceIndexes: [0, 1, 2, 3],
+            updatedAtEpochMillis: 1_778_900_000_000
+        )
+
+        let decoded = try ObjectTransferCodec.decode(ObjectControlEnvelope.self, from: ObjectTransferCodec.encode(control))
+
+        XCTAssertEqual(decoded.objectProtocolVersion, 1)
+        XCTAssertEqual(decoded.kind, .pieceAck)
+        XCTAssertEqual(decoded.objectId, objectId)
+        XCTAssertEqual(decoded.transferId, transferId)
+        XCTAssertEqual(decoded.pieceIndexes, [0, 1, 2, 3])
+        XCTAssertNil(decoded.resumeToken)
+        XCTAssertNil(decoded.failureReason)
+    }
+
     func testAttachmentEnvelopeDecryptsAfterJsonRoundTrip() async throws {
         let alice = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
         let bob = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))

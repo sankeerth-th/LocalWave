@@ -12,6 +12,26 @@ targets:
   LocalWave:
     type: application
     platform: iOS
+    info:
+      path: LocalWave/Resources/Info.plist
+      properties:
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.localwave.package
+            UTTypeDescription: LocalWave Encrypted Package
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - localwavepkg
+              public.mime-type:
+                - application/vnd.localwave.package
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: LocalWave Encrypted Package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.localwave.package
+        LSSupportsOpeningDocumentsInPlace: true
     sources:
       - path: LocalWave
         excludes:

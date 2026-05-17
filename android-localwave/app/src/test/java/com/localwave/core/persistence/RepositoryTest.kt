@@ -9,6 +9,11 @@ import com.localwave.core.model.MessageStatus
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
+import com.localwave.core.model.DeliveryRoute
+import com.localwave.core.model.TransferRecord
+import com.localwave.core.model.TransferStatus
+import com.localwave.core.protocol.TransferRecordFileStore
+import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -72,5 +77,26 @@ class RepositoryTest {
         repo.updateStatus(message.id, MessageStatus.SENT)
 
         assertEquals(MessageStatus.SENT, repo.observeMessages(peerId).first().single().status)
+    }
+
+    @Test
+    fun transferRecordFileStorePersistsObservableTransferState() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "transfer-${UUID.randomUUID()}.json")
+        val transfer = TransferRecord(
+            id = UUID.randomUUID(),
+            peerId = PeerId("alice"),
+            fileName = "inventory.pdf",
+            byteCount = 128_000,
+            route = DeliveryRoute.L2CAP,
+            status = TransferStatus.WAITING_FOR_PEER,
+            updatedAtEpochMillis = 1_778_900_000_000,
+            failureReason = "Waiting for encrypted transfer receipt."
+        )
+
+        TransferRecordFileStore(file).save(listOf(transfer))
+        val reloaded = TransferRecordFileStore(file).load()
+
+        assertEquals(listOf(transfer), reloaded)
     }
 }

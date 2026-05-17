@@ -49,6 +49,7 @@
 		8313920FF9F8BA46320CF964 /* MessageStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645E96E178D8D57218927267 /* MessageStatusView.swift */; };
 		84259615C6104C366403660B /* PeerDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBEE206B72B43D006933BD7 /* PeerDetailSheet.swift */; };
 		8B2CF68A08B455FCB013765D /* IdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8FC25C673DA552097549FB /* IdentityStore.swift */; };
+		910AB694BF24E94634E5BAE1 /* TransferRecordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D56C66447D1FFABDEDAC7992 /* TransferRecordStore.swift */; };
 		9D82AB7A97CDCA672A9F2317 /* LocalNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414BADD7D420BEB300E6A23A /* LocalNotificationService.swift */; };
 		A91D46D83807EA63B21E0FF9 /* Envelopes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC3F7F4C45057A8BEE8A666 /* Envelopes.swift */; };
 		ABB5506E7ED4F1FB97B77239 /* MockLocalWaveEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D6BC3F777916DAFAF1B4A1 /* MockLocalWaveEngine.swift */; };
@@ -173,9 +174,11 @@
 		CBB2104528202EAE0E922EF1 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		CC544D646979A3DEEC306F0A /* MessageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRepository.swift; sourceTree = "<group>"; };
 		D33CF4D07A40555C2599F655 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		D56C66447D1FFABDEDAC7992 /* TransferRecordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferRecordStore.swift; sourceTree = "<group>"; };
 		D65636CD2797EDA4F551527B /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		D9574D0B7E2F30BF2B27E76A /* ApplePermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePermissionService.swift; sourceTree = "<group>"; };
 		DF8FC25C673DA552097549FB /* IdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityStore.swift; sourceTree = "<group>"; };
+		DFF82567C8D83060B99F00BA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E199FC27B0655455E10FEEB6 /* FrequencyHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequencyHeaderView.swift; sourceTree = "<group>"; };
 		E44C0B1F344B20EC598B5394 /* SessionCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCrypto.swift; sourceTree = "<group>"; };
 		E606BF3918A24F2E25EB4E1D /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
@@ -252,6 +255,7 @@
 		2BFC13CD0D068836A065D7FA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				DFF82567C8D83060B99F00BA /* Info.plist */,
 				5C1A99A4461E6923DEA99A8F /* LocalWave.entitlements */,
 			);
 			path = Resources;
@@ -265,6 +269,7 @@
 				CC544D646979A3DEEC306F0A /* MessageRepository.swift */,
 				8F91F3B5576C0798AACC762F /* PeerRepository.swift */,
 				8D81C70C544F81EFC4E24D9E /* SwiftDataStore.swift */,
+				D56C66447D1FFABDEDAC7992 /* TransferRecordStore.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -658,6 +663,7 @@
 				AE3CB33A58DEAC1AA992A8A6 /* SettingsViewModel.swift in Sources */,
 				1A28156BDC38C76F0356F33F /* SignalStrengthView.swift in Sources */,
 				26546A74896CA36DCDBBB508 /* SwiftDataStore.swift in Sources */,
+				910AB694BF24E94634E5BAE1 /* TransferRecordStore.swift in Sources */,
 				E5E09961B65BA560D24C3033 /* TransportPacket.swift in Sources */,
 				F1892B28BFE414C7AFCF8BD8 /* TransportState.swift in Sources */,
 				0E57C0AE297FD18A1935A387 /* WakeButton.swift in Sources */,
@@ -740,6 +746,7 @@
 				CODE_SIGN_ENTITLEMENTS = LocalWave/Resources/LocalWave.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LocalWave/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LocalWave;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "LocalWave uses Bluetooth to discover nearby teammates on the same Frequency Code and exchange encrypted messages without internet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -782,6 +789,7 @@
 				CODE_SIGN_ENTITLEMENTS = LocalWave/Resources/LocalWave.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LocalWave/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LocalWave;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "LocalWave uses Bluetooth to discover nearby teammates on the same Frequency Code and exchange encrypted messages without internet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

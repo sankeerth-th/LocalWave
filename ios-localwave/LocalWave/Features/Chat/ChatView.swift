@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import UIKit
 
 private extension UTType {
-    static let localWavePackage = UTType(filenameExtension: EncryptedSharePackage.fileExtension) ?? .data
+    static let localWavePackage = UTType(exportedAs: "com.localwave.package", conformingTo: .data)
 }
 
 struct ChatView: View {
@@ -34,6 +34,12 @@ struct ChatView: View {
 
             MessageListView(messages: viewModel.messages) { message in
                 Task { await viewModel.retry(message) }
+            }
+
+            if let latestTransfer = viewModel.transferRecords.first {
+                TransferStatusBanner(transfer: latestTransfer)
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
             }
 
             AttachmentActionsView(
@@ -84,6 +90,95 @@ struct ChatView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+    }
+}
+
+private struct TransferStatusBanner: View {
+    let transfer: TransferRecord
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: iconName)
+                .foregroundStyle(color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statusText)
+                    .font(.footnote.weight(.semibold))
+                Text(routeText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var statusText: String {
+        switch transfer.status {
+        case .queued, .negotiating, .announced:
+            return "Preparing \(transfer.fileName)"
+        case .accepted, .sessionNegotiated, .sending, .transferring:
+            return "Sending \(transfer.fileName)"
+        case .manifestReceived:
+            return "Receiving encrypted manifest"
+        case .waitingForPeer:
+            return "Waiting for peer receipt"
+        case .waitingForRelay:
+            return "Waiting for relay"
+        case .verifying, .reconstructing, .decrypting, .importing:
+            return "Verifying secure transfer"
+        case .exported:
+            return "Encrypted package ready to share"
+        case .completed, .delivered:
+            return "Downloaded"
+        case .pending:
+            return "Pending"
+        case .failed:
+            return transfer.failureReason ?? "Transfer failed"
+        case .expired:
+            return "Transfer expired"
+        case .cancelled:
+            return "Transfer cancelled"
+        }
+    }
+
+    private var routeText: String {
+        switch transfer.route {
+        case .l2cap:
+            return "Route: Direct L2CAP"
+        case .gatt:
+            return "Route: GATT control only"
+        case .nativeShare:
+            return "Route: Native Share package"
+        case .fixedRelay:
+            return "Route: Fixed relay"
+        case .phoneRelay:
+            return "Route: Best-effort phone relay"
+        }
+    }
+
+    private var iconName: String {
+        switch transfer.status {
+        case .failed, .expired:
+            return "exclamationmark.triangle.fill"
+        case .completed, .delivered, .exported:
+            return "checkmark.circle.fill"
+        default:
+            return "arrow.up.arrow.down.circle.fill"
+        }
+    }
+
+    private var color: Color {
+        switch transfer.status {
+        case .failed, .expired:
+            return .orange
+        case .completed, .delivered, .exported:
+            return .green
+        default:
+            return .accentColor
         }
     }
 }

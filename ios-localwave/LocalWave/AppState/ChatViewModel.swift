@@ -13,6 +13,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public private(set) var isTransferring = false
     @Published public private(set) var wakeState: WakeButtonState = .idle
     @Published public private(set) var errorMessage: String?
+    @Published public private(set) var transferRecords: [TransferRecord] = []
     @Published public var sharePackageURL: SharePackageURL?
 
     public let environment: AppEnvironment
@@ -22,6 +23,7 @@ public final class ChatViewModel: ObservableObject {
     private var messagesTask: Task<Void, Never>?
     private var peerTask: Task<Void, Never>?
     private var transportTask: Task<Void, Never>?
+    private var transferTask: Task<Void, Never>?
 
     public init(environment: AppEnvironment, peer: PeerProfile) {
         self.environment = environment
@@ -32,6 +34,7 @@ public final class ChatViewModel: ObservableObject {
         messagesTask?.cancel()
         peerTask?.cancel()
         transportTask?.cancel()
+        transferTask?.cancel()
     }
 
     public var canSend: Bool {
@@ -73,15 +76,26 @@ public final class ChatViewModel: ObservableObject {
                 self.transportState = state
             }
         }
+
+        transferTask = Task { [environment, peerID = peer.id] in
+            for await transfers in environment.engine.observeTransfers() {
+                if Task.isCancelled { return }
+                self.transferRecords = transfers
+                    .filter { $0.peerId == peerID }
+                    .sorted { $0.updatedAt > $1.updatedAt }
+            }
+        }
     }
 
     public func stop() {
         messagesTask?.cancel()
         peerTask?.cancel()
         transportTask?.cancel()
+        transferTask?.cancel()
         messagesTask = nil
         peerTask = nil
         transportTask = nil
+        transferTask = nil
     }
 
     public func sendDraft() async {
@@ -154,8 +168,11 @@ public final class ChatViewModel: ObservableObject {
             let attachment = try loadAttachment(from: url)
             let package = try await environment.engine.exportEncryptedSharePackage(attachment, to: peer.id)
             let encoded = try SecureEnvelopeCodec.encode(package)
-            let safeName = attachment.fileName.replacingOccurrences(of: "/", with: "-")
-            let target = FileManager.default.temporaryDirectory
+            let safeName = Self.safePackageName(for: attachment.fileName)
+            let exportDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("LocalWaveExports", isDirectory: true)
+            try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+            let target = exportDirectory
                 .appendingPathComponent("\(safeName).\(EncryptedSharePackage.fileExtension)")
             try encoded.write(to: target, options: [.atomic, .completeFileProtection])
             sharePackageURL = SharePackageURL(url: target)
@@ -187,5 +204,16 @@ public final class ChatViewModel: ObservableObject {
         let fileName = resourceValues?.localizedName ?? resourceValues?.name ?? url.lastPathComponent
         let contentType = resourceValues?.contentType?.preferredMIMEType ?? "application/octet-stream"
         return try OutboundAttachment(fileName: fileName, contentType: contentType, data: data)
+    }
+
+    private static func safePackageName(for fileName: String) -> String {
+        let cleaned = fileName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
+        let scalars = cleaned.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" }
+        let safe = String(scalars).trimmingCharacters(in: CharacterSet(charactersIn: ".-"))
+        return safe.isEmpty ? "localwave-package" : safe
     }
 }

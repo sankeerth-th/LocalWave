@@ -36,6 +36,34 @@ final class RepositoryTests: XCTestCase {
         XCTAssertEqual(peers.first?.state, .recentlySeen)
     }
 
+    func testTransferRecordStorePersistsObservableTransferState() async throws {
+        let directory = try temporaryDirectory()
+        let store = TransferRecordStore(directory: directory)
+        let transfer = TransferRecord(
+            id: UUID(),
+            peerId: "peer-1",
+            fileName: "inventory.pdf",
+            byteCount: 128_000,
+            route: .l2cap,
+            status: .waitingForPeer,
+            updatedAt: Date(),
+            failureReason: "Waiting for encrypted transfer receipt."
+        )
+
+        try await store.save([transfer])
+        let reloaded = try await TransferRecordStore(directory: directory).load()
+
+        XCTAssertEqual(reloaded.count, 1)
+        XCTAssertEqual(reloaded.first?.id, transfer.id)
+        XCTAssertEqual(reloaded.first?.peerId, transfer.peerId)
+        XCTAssertEqual(reloaded.first?.fileName, transfer.fileName)
+        XCTAssertEqual(reloaded.first?.byteCount, transfer.byteCount)
+        XCTAssertEqual(reloaded.first?.route, transfer.route)
+        XCTAssertEqual(reloaded.first?.status, transfer.status)
+        XCTAssertEqual(reloaded.first?.failureReason, transfer.failureReason)
+        XCTAssertEqual(reloaded.first?.updatedAt.timeIntervalSince1970 ?? 0, transfer.updatedAt.timeIntervalSince1970, accuracy: 0.001)
+    }
+
     private func temporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("LocalWaveTests")

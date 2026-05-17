@@ -8,6 +8,8 @@ import com.localwave.core.model.EncryptedObjectManifest
 import com.localwave.core.model.LocalIdentity
 import com.localwave.core.model.LocalWaveObjectPackage
 import com.localwave.core.model.ObjectManifestPlaintext
+import com.localwave.core.model.ObjectControlEnvelope
+import com.localwave.core.model.ObjectControlKind
 import com.localwave.core.model.ObjectPiece
 import com.localwave.core.model.ObjectPieceBatch
 import com.localwave.core.model.ObjectPieceKind
@@ -20,6 +22,9 @@ import com.localwave.core.model.PieceInventory
 import com.localwave.core.model.RelayChunk
 import com.localwave.core.model.ResumeToken
 import com.localwave.core.model.TransferReceipt
+import com.localwave.core.model.TransferRecord
+import com.localwave.core.model.TransferStatus
+import com.localwave.core.model.DeliveryRoute
 import java.io.File
 import java.nio.ByteBuffer
 import java.security.MessageDigest
@@ -199,9 +204,64 @@ object ObjectTransferJson {
             )
         }
 
+    fun encodeObjectControl(control: ObjectControlEnvelope): ByteArray =
+        JSONObject()
+            .put("objectProtocolVersion", control.objectProtocolVersion.toInt())
+            .put("kind", control.kind.wireName())
+            .put("objectId", control.objectId)
+            .put("senderId", control.senderId.value)
+            .put("recipientId", control.recipientId.value)
+            .put("pieceIndexes", JSONArray(control.pieceIndexes))
+            .put("updatedAtEpochMillis", control.updatedAtEpochMillis)
+            .also { json ->
+                control.transferId?.let { json.put("transferId", it.toString().uppercase()) }
+                control.resumeToken?.let { json.put("resumeToken", encodeResumeToken(it)) }
+                control.failureReason?.let { json.put("failureReason", it) }
+            }
+            .toString()
+            .encodeToByteArray()
+
+    fun decodeObjectControl(bytes: ByteArray): ObjectControlEnvelope =
+        JSONObject(bytes.decodeToString()).let { json ->
+            ObjectControlEnvelope(
+                objectProtocolVersion = json.getInt("objectProtocolVersion").toUByte(),
+                kind = objectControlKindFromWire(json.getString("kind")),
+                objectId = json.getString("objectId"),
+                senderId = PeerId(json.getString("senderId")),
+                recipientId = PeerId(json.getString("recipientId")),
+                transferId = json.optString("transferId").takeIf { it.isNotBlank() }?.let(UUID::fromString),
+                pieceIndexes = json.optJSONArray("pieceIndexes")?.toIntList().orEmpty(),
+                resumeToken = json.optJSONObject("resumeToken")?.let(::decodeResumeToken),
+                failureReason = json.optString("failureReason").takeIf { it.isNotBlank() },
+                updatedAtEpochMillis = json.getLong("updatedAtEpochMillis")
+            )
+        }
+
+    private fun encodeResumeToken(token: ResumeToken): JSONObject =
+        JSONObject()
+            .put("objectProtocolVersion", token.objectProtocolVersion.toInt())
+            .put("objectId", token.objectId)
+            .put("receiverId", token.receiverId.value)
+            .put("receivedPieceIndexes", JSONArray(token.receivedPieceIndexes))
+            .put("receivedBitmapHash", b64.encodeToString(token.receivedBitmapHash))
+            .put("lastVerifiedPiece", token.lastVerifiedPiece)
+            .put("timestampEpochMillis", token.timestampEpochMillis)
+
+    private fun decodeResumeToken(json: JSONObject): ResumeToken =
+        ResumeToken(
+            objectProtocolVersion = json.getInt("objectProtocolVersion").toUByte(),
+            objectId = json.getString("objectId"),
+            receiverId = PeerId(json.getString("receiverId")),
+            receivedPieceIndexes = json.getJSONArray("receivedPieceIndexes").toIntList(),
+            receivedBitmapHash = b64d.decode(json.getString("receivedBitmapHash")),
+            lastVerifiedPiece = json.getInt("lastVerifiedPiece"),
+            timestampEpochMillis = json.getLong("timestampEpochMillis")
+        )
+
     private fun bytesArray(values: List<ByteArray>): JSONArray = JSONArray(values.map { b64.encodeToString(it) })
     private fun JSONArray.toStringList(): List<String> = (0 until length()).map { getString(it) }
     private fun JSONArray.toBytesList(): List<ByteArray> = (0 until length()).map { b64d.decode(getString(it)) }
+    private fun JSONArray.toIntList(): List<Int> = (0 until length()).map { getInt(it) }
     private fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
     private fun ObjectRelayPolicy.wireName(): String = when (this) {
         ObjectRelayPolicy.DIRECT_ONLY -> "directOnly"
@@ -211,6 +271,25 @@ object ObjectTransferJson {
         "directOnly", "DIRECT_ONLY" -> ObjectRelayPolicy.DIRECT_ONLY
         "trustedPeersOnly", "TRUSTED_PEERS_ONLY" -> ObjectRelayPolicy.TRUSTED_PEERS_ONLY
         else -> throw IllegalArgumentException("Unknown relay policy.")
+    }
+    private fun ObjectControlKind.wireName(): String = when (this) {
+        ObjectControlKind.MANIFEST_ACK -> "manifestAck"
+        ObjectControlKind.PIECE_ACK -> "pieceAck"
+        ObjectControlKind.MISSING_PIECES -> "missingPieces"
+        ObjectControlKind.RESUME_TOKEN -> "resumeToken"
+        ObjectControlKind.TRANSFER_RECEIPT -> "transferReceipt"
+        ObjectControlKind.TRANSFER_FAILED -> "transferFailed"
+        ObjectControlKind.CANCELLED -> "cancelled"
+    }
+    private fun objectControlKindFromWire(value: String): ObjectControlKind = when (value) {
+        "manifestAck", "MANIFEST_ACK" -> ObjectControlKind.MANIFEST_ACK
+        "pieceAck", "PIECE_ACK" -> ObjectControlKind.PIECE_ACK
+        "missingPieces", "MISSING_PIECES" -> ObjectControlKind.MISSING_PIECES
+        "resumeToken", "RESUME_TOKEN" -> ObjectControlKind.RESUME_TOKEN
+        "transferReceipt", "TRANSFER_RECEIPT" -> ObjectControlKind.TRANSFER_RECEIPT
+        "transferFailed", "TRANSFER_FAILED" -> ObjectControlKind.TRANSFER_FAILED
+        "cancelled", "CANCELLED" -> ObjectControlKind.CANCELLED
+        else -> throw IllegalArgumentException("Unknown object control kind.")
     }
 }
 
@@ -469,8 +548,63 @@ class LocalWaveObjectFileStore(private val root: File) {
     private fun objectDirectory(objectId: String): File = File(root, objectId)
 }
 
+class TransferRecordFileStore(private val file: File) {
+    @Synchronized
+    fun load(): List<TransferRecord> {
+        if (!file.exists()) return emptyList()
+        val array = JSONArray(file.readText())
+        return (0 until array.length()).map { index ->
+            val json = array.getJSONObject(index)
+            TransferRecord(
+                id = UUID.fromString(json.getString("id")),
+                peerId = PeerId(json.getString("peerId")),
+                fileName = json.getString("fileName"),
+                byteCount = json.getInt("byteCount"),
+                route = transferRouteFromWire(json.getString("route")),
+                status = TransferStatus.valueOf(json.getString("status")),
+                updatedAtEpochMillis = json.getLong("updatedAtEpochMillis"),
+                failureReason = json.optString("failureReason").takeIf { it.isNotBlank() }
+            )
+        }
+    }
+
+    @Synchronized
+    fun save(records: List<TransferRecord>) {
+        file.parentFile?.mkdirs()
+        val array = JSONArray(records.map { record ->
+            JSONObject()
+                .put("id", record.id.toString().uppercase())
+                .put("peerId", record.peerId.value)
+                .put("fileName", record.fileName)
+                .put("byteCount", record.byteCount)
+                .put("route", record.route.transferWireName())
+                .put("status", record.status.name)
+                .put("updatedAtEpochMillis", record.updatedAtEpochMillis)
+                .also { json -> record.failureReason?.let { json.put("failureReason", it) } }
+        })
+        file.writeText(array.toString())
+    }
+}
+
 private fun ByteArray.chunked(size: Int): List<ByteArray> =
     if (isEmpty()) listOf(ByteArray(0)) else indices.step(size).map { copyOfRange(it, minOf(it + size, this.size)) }
+
+private fun DeliveryRoute.transferWireName(): String = when (this) {
+    DeliveryRoute.GATT -> "gatt"
+    DeliveryRoute.L2CAP -> "l2cap"
+    DeliveryRoute.NATIVE_SHARE -> "nativeShare"
+    DeliveryRoute.FIXED_RELAY -> "fixedRelay"
+    DeliveryRoute.PHONE_RELAY -> "phoneRelay"
+}
+
+private fun transferRouteFromWire(value: String): DeliveryRoute = when (value) {
+    "gatt", "GATT" -> DeliveryRoute.GATT
+    "l2cap", "L2CAP" -> DeliveryRoute.L2CAP
+    "nativeShare", "NATIVE_SHARE" -> DeliveryRoute.NATIVE_SHARE
+    "fixedRelay", "FIXED_RELAY" -> DeliveryRoute.FIXED_RELAY
+    "phoneRelay", "PHONE_RELAY" -> DeliveryRoute.PHONE_RELAY
+    else -> DeliveryRoute.valueOf(value)
+}
 
 private fun xor(left: ByteArray, right: ByteArray, size: Int): ByteArray =
     ByteArray(size) { index -> ((left.getOrNull(index) ?: 0).toInt() xor (right.getOrNull(index) ?: 0).toInt()).toByte() }

@@ -19,6 +19,8 @@ import com.localwave.core.model.LocalWaveObjectPackage
 import com.localwave.core.model.MessageDirection
 import com.localwave.core.model.MessageId
 import com.localwave.core.model.MessageStatus
+import com.localwave.core.model.ObjectControlEnvelope
+import com.localwave.core.model.ObjectControlKind
 import com.localwave.core.model.ObjectPiece
 import com.localwave.core.model.ObjectPieceBatch
 import com.localwave.core.model.OutboundAttachment
@@ -55,7 +57,8 @@ class RealLocalWaveEngine(
     private val messageRepository: MessageRepository,
     private val transport: BluetoothTransport,
     private val wakeNotificationManager: WakeNotificationManager,
-    private val objectStore: LocalWaveObjectFileStore? = null
+    private val objectStore: LocalWaveObjectFileStore? = null,
+    private val transferStore: TransferRecordFileStore? = null
 ) : LocalWaveEngine {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val peers = MutableStateFlow<List<PeerProfile>>(emptyList())
@@ -63,6 +66,7 @@ class RealLocalWaveEngine(
     private val transfers = MutableStateFlow<List<TransferRecord>>(emptyList())
     private val objectTransfer = ObjectTransferCrypto(crypto)
     private val incomingObjects = mutableMapOf<String, IncomingObjectState>()
+    private val pendingUnknownMessages = mutableMapOf<PeerId, MutableList<PendingMessagePacket>>()
     private val framer = BlePacketFramer()
     private val reassembler = PacketReassembler()
     private var channel: ChannelCode? = null
@@ -76,6 +80,7 @@ class RealLocalWaveEngine(
         this.displayName = trimmed
         val identity = identityStore.loadOrCreateIdentity(trimmed)
         transport.start(channel, identity)
+        transfers.value = transferStore?.load().orEmpty()
         scope.launch {
             transport.observeEvents().collect { event -> handle(event) }
         }
@@ -139,15 +144,34 @@ class RealLocalWaveEngine(
             fileName = attachment.fileName,
             byteCount = attachment.data.size,
             route = DeliveryRoute.L2CAP,
-            status = TransferStatus.TRANSFERRING
+            status = TransferStatus.ANNOUNCED
         )
         upsertTransfer(transfer)
-        runCatching { sendPresence(to) }
-        transport.send(ObjectTransferJson.encodeManifest(packageFile.manifest).toString().encodeToByteArray(), TransportPacketKind.OBJECT_MANIFEST, to)
-        packageFile.pieces.chunked(4).forEach { pieces ->
-            transport.sendBulk(ObjectTransferJson.encodePieceBatch(ObjectPieceBatch(objectId = packageFile.manifest.objectId, pieces = pieces)), to)
+        try {
+            runCatching { sendPresence(to) }
+            transport.send(ObjectTransferJson.encodeManifest(packageFile.manifest).toString().encodeToByteArray(), TransportPacketKind.OBJECT_MANIFEST, to)
+            upsertTransfer(transfer.copy(status = TransferStatus.SENDING, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null))
+            packageFile.pieces.chunked(4).forEach { pieces ->
+                transport.sendBulk(ObjectTransferJson.encodePieceBatch(ObjectPieceBatch(objectId = packageFile.manifest.objectId, pieces = pieces)), to)
+                upsertTransfer(transfer.copy(status = TransferStatus.TRANSFERRING, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null))
+            }
+            upsertTransfer(
+                transfer.copy(
+                    status = TransferStatus.WAITING_FOR_PEER,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                    failureReason = "Waiting for encrypted transfer receipt."
+                )
+            )
+        } catch (error: Throwable) {
+            upsertTransfer(
+                transfer.copy(
+                    status = TransferStatus.FAILED,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                    failureReason = "Direct L2CAP transfer unavailable. Keep both apps open and nearby, then retry or use Share Package."
+                )
+            )
+            throw error
         }
-        upsertTransfer(transfer.copy(status = TransferStatus.PENDING, updatedAtEpochMillis = System.currentTimeMillis()))
         return transferId
     }
 
@@ -257,11 +281,12 @@ class RealLocalWaveEngine(
         when (assembled.kind) {
             TransportPacketKind.MESSAGE -> {
                 val envelope = ProtocolJson.decodeMessageEnvelope(assembled.body)
-                val peer = peers.value.firstOrNull { it.id == envelope.senderId } ?: peerRepository.peer(envelope.senderId) ?: return
-                val text = crypto.decryptMessage(envelope, peer, activeChannel)
-                markPeerAvailable(peer)
-                messageRepository.save(ChatMessage(envelope.messageId, peer.id, text, envelope.timestampEpochMillis, MessageDirection.INCOMING, MessageStatus.DELIVERED))
-                sendDeliveryReceipt(envelope, peer)
+                val peer = peers.value.firstOrNull { it.id == envelope.senderId } ?: peerRepository.peer(envelope.senderId)
+                if (peer == null) {
+                    bufferUnknownMessage(envelope, assembled.body)
+                    return
+                }
+                processMessage(envelope, peer, activeChannel)
             }
             TransportPacketKind.WAKE -> {
                 val envelope = ProtocolJson.decodeWakeEnvelope(assembled.body)
@@ -289,6 +314,14 @@ class RealLocalWaveEngine(
                         status = TransferStatus.MANIFEST_RECEIVED
                     )
                 )
+                runCatching {
+                    sendObjectControl(
+                        kind = ObjectControlKind.MANIFEST_ACK,
+                        objectId = manifest.objectId,
+                        to = manifest.senderId,
+                        transferId = transferIdFor(manifest.objectId)
+                    )
+                }
                 tryCompleteObject(manifest.objectId)
             }
             TransportPacketKind.RECEIPT -> {
@@ -317,8 +350,9 @@ class RealLocalWaveEngine(
                         publicKeyData = intro.agreementPublicKey
                     )
                 )
+                drainPendingMessages(intro.peerId, activeChannel)
             }
-            TransportPacketKind.OBJECT_CONTROL -> Unit
+            TransportPacketKind.OBJECT_CONTROL -> handleObjectControl(ObjectTransferJson.decodeObjectControl(assembled.body))
         }
     }
 
@@ -338,6 +372,15 @@ class RealLocalWaveEngine(
                         status = TransferStatus.TRANSFERRING
                     )
                 )
+                runCatching {
+                    sendObjectControl(
+                        kind = ObjectControlKind.PIECE_ACK,
+                        objectId = batch.objectId,
+                        to = manifest.senderId,
+                        transferId = transferIdFor(batch.objectId),
+                        pieceIndexes = batch.pieces.map { it.pieceIndex }
+                    )
+                }
             }
             tryCompleteObject(batch.objectId)
             return
@@ -370,6 +413,16 @@ class RealLocalWaveEngine(
         val pieces = state?.pieces ?: storedPackage?.pieces ?: emptyList()
         runCatching {
             val peer = peerForImportedObject(null, manifest)
+            upsertTransfer(
+                TransferRecord(
+                    id = transferIdFor(objectId),
+                    peerId = peer.id,
+                    fileName = "Encrypted object",
+                    byteCount = pieces.sumOf { it.ciphertext.size },
+                    route = DeliveryRoute.L2CAP,
+                    status = TransferStatus.VERIFYING
+                )
+            )
             val result = objectTransfer.decryptPackage(LocalWaveObjectPackage(manifest, pieces), peer, activeChannel)
             upsertTransfer(
                 TransferRecord(
@@ -383,8 +436,17 @@ class RealLocalWaveEngine(
             )
             incomingObjects.remove(objectId)
             transport.send(ObjectTransferJson.encodeReceipt(result.receipt), TransportPacketKind.RECEIPT, peer.id)
+            sendObjectControl(ObjectControlKind.TRANSFER_RECEIPT, objectId, peer.id, result.transferId)
         }.onFailure {
             incomingObjects[objectId]?.lastError = it.message
+            val transferId = transferIdFor(objectId)
+            transfers.value = transfers.value.map { transfer ->
+                if (transfer.id == transferId && transfer.status == TransferStatus.VERIFYING) {
+                    transfer.copy(status = TransferStatus.TRANSFERRING, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null)
+                } else {
+                    transfer
+                }
+            }
         }
     }
 
@@ -410,6 +472,36 @@ class RealLocalWaveEngine(
         val updated = peer.copy(state = PresenceState.AVAILABLE, lastSeenEpochMillis = System.currentTimeMillis())
         peerRepository.upsert(updated)
         peers.value = (peers.value.filterNot { it.id == updated.id } + updated).sortedBy { it.displayName.lowercase() }
+    }
+
+    private suspend fun processMessage(envelope: com.localwave.core.model.MessageEnvelope, peer: PeerProfile, activeChannel: ChannelCode) {
+        val text = crypto.decryptMessage(envelope, peer, activeChannel)
+        markPeerAvailable(peer)
+        messageRepository.save(ChatMessage(envelope.messageId, peer.id, text, envelope.timestampEpochMillis, MessageDirection.INCOMING, MessageStatus.DELIVERED))
+        sendDeliveryReceipt(envelope, peer)
+    }
+
+    private fun bufferUnknownMessage(envelope: com.localwave.core.model.MessageEnvelope, body: ByteArray) {
+        val pending = pendingUnknownMessages.getOrPut(envelope.senderId) { mutableListOf() }
+        val now = System.currentTimeMillis()
+        pending += PendingMessagePacket(body, now)
+        pending.removeAll { now - it.receivedAtEpochMillis > 30_000 }
+        while (pending.size > 8) pending.removeAt(0)
+        transportState.value = transportState.value.copy(lastError = "message buffered until peer intro arrives")
+    }
+
+    private suspend fun drainPendingMessages(peerId: PeerId, activeChannel: ChannelCode) {
+        val peer = peers.value.firstOrNull { it.id == peerId } ?: peerRepository.peer(peerId) ?: return
+        val pending = pendingUnknownMessages.remove(peerId).orEmpty()
+        val now = System.currentTimeMillis()
+        pending.filter { now - it.receivedAtEpochMillis <= 30_000 }.forEach { packet ->
+            runCatching {
+                val envelope = ProtocolJson.decodeMessageEnvelope(packet.body)
+                processMessage(envelope, peer, activeChannel)
+            }.onFailure {
+                transportState.value = transportState.value.copy(lastError = "buffered message rejected")
+            }
+        }
     }
 
     private suspend fun sendDeliveryReceipt(envelope: com.localwave.core.model.MessageEnvelope, peer: PeerProfile) {
@@ -438,8 +530,48 @@ class RealLocalWaveEngine(
         transport.send(ProtocolJson.encodePeerIntro(intro), TransportPacketKind.PRESENCE, to)
     }
 
+    private suspend fun sendObjectControl(
+        kind: ObjectControlKind,
+        objectId: String,
+        to: PeerId,
+        transferId: TransferId? = null,
+        pieceIndexes: List<Int> = emptyList(),
+        resumeToken: com.localwave.core.model.ResumeToken? = null,
+        failureReason: String? = null
+    ) {
+        val identity = identityStore.loadOrCreateIdentity(displayName.ifBlank { "Local User" })
+        val control = ObjectControlEnvelope(
+            kind = kind,
+            objectId = objectId,
+            senderId = identity.peerId,
+            recipientId = to,
+            transferId = transferId,
+            pieceIndexes = pieceIndexes,
+            resumeToken = resumeToken,
+            failureReason = failureReason
+        )
+        transport.send(ObjectTransferJson.encodeObjectControl(control), TransportPacketKind.OBJECT_CONTROL, to)
+    }
+
+    private fun handleObjectControl(control: ObjectControlEnvelope) {
+        val transferId = control.transferId ?: transferIdFor(control.objectId)
+        transfers.value = transfers.value.map { transfer ->
+            if (transfer.id != transferId) return@map transfer
+            when (control.kind) {
+                ObjectControlKind.MANIFEST_ACK -> transfer.copy(status = TransferStatus.ACCEPTED, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null)
+                ObjectControlKind.PIECE_ACK -> transfer.copy(status = TransferStatus.TRANSFERRING, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null)
+                ObjectControlKind.MISSING_PIECES, ObjectControlKind.RESUME_TOKEN -> transfer.copy(status = TransferStatus.SESSION_NEGOTIATED, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null)
+                ObjectControlKind.TRANSFER_RECEIPT -> transfer.copy(status = TransferStatus.COMPLETED, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = null)
+                ObjectControlKind.TRANSFER_FAILED -> transfer.copy(status = TransferStatus.FAILED, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = control.failureReason ?: "Transfer failed.")
+                ObjectControlKind.CANCELLED -> transfer.copy(status = TransferStatus.CANCELLED, updatedAtEpochMillis = System.currentTimeMillis(), failureReason = control.failureReason)
+            }
+        }
+    }
+
     private fun upsertTransfer(record: TransferRecord) {
-        transfers.value = transfers.value.filterNot { it.id == record.id } + record
+        val updated = transfers.value.filterNot { it.id == record.id } + record
+        transfers.value = updated
+        transferStore?.save(updated)
     }
 
     private fun transferIdFor(objectId: String): TransferId =
@@ -462,6 +594,11 @@ private data class IncomingObjectState(
     var manifest: EncryptedObjectManifest? = null,
     val pieces: MutableList<ObjectPiece> = mutableListOf(),
     var lastError: String? = null
+)
+
+private data class PendingMessagePacket(
+    val body: ByteArray,
+    val receivedAtEpochMillis: Long
 )
 
 private fun String.uuidFormat(): String = "${substring(0, 8)}-${substring(8, 12)}-${substring(12, 16)}-${substring(16, 20)}-${substring(20, 32)}"

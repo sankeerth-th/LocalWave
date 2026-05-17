@@ -387,6 +387,54 @@ data class ResumeToken(
     val timestampEpochMillis: Long
 )
 
+enum class ObjectControlKind {
+    MANIFEST_ACK,
+    PIECE_ACK,
+    MISSING_PIECES,
+    RESUME_TOKEN,
+    TRANSFER_RECEIPT,
+    TRANSFER_FAILED,
+    CANCELLED
+}
+
+data class ObjectControlEnvelope(
+    val objectProtocolVersion: UByte = 1u,
+    val kind: ObjectControlKind,
+    val objectId: String,
+    val senderId: PeerId,
+    val recipientId: PeerId,
+    val transferId: TransferId? = null,
+    val pieceIndexes: List<Int> = emptyList(),
+    val resumeToken: ResumeToken? = null,
+    val failureReason: String? = null,
+    val updatedAtEpochMillis: Long = System.currentTimeMillis()
+)
+
+data class ManifestAck(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val transferId: TransferId
+)
+
+data class PieceAck(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val pieceIndexes: List<Int>
+)
+
+data class MissingPiecesRequest(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val pieceIndexes: List<Int>
+)
+
+data class TransferFailure(
+    val objectProtocolVersion: UByte = 1u,
+    val objectId: String,
+    val transferId: TransferId,
+    val reason: String
+)
+
 data class RelayToken(
     val objectProtocolVersion: UByte = 1u,
     val objectId: String,

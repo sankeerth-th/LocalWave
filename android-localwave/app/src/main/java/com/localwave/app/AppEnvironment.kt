@@ -24,6 +24,7 @@ import com.localwave.core.persistence.RoomPeerRepository
 import com.localwave.core.protocol.LocalWaveEngine
 import com.localwave.core.protocol.LocalWaveObjectFileStore
 import com.localwave.core.protocol.RealLocalWaveEngine
+import com.localwave.core.protocol.TransferRecordFileStore
 import java.io.File
 
 enum class EngineMode { REAL, MOCK }
@@ -51,7 +52,8 @@ data class AppEnvironment(
                 messageRepository = RoomMessageRepository(database.messageDao()),
                 transport = transport,
                 wakeNotificationManager = WakeNotificationManager(appContext),
-                objectStore = LocalWaveObjectFileStore(File(appContext.filesDir, "localwave-objects"))
+                objectStore = LocalWaveObjectFileStore(File(appContext.filesDir, "localwave-objects")),
+                transferStore = TransferRecordFileStore(File(appContext.filesDir, "localwave-transfers.json"))
             )
             return AppEnvironment(
                 engine = engine,

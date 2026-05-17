@@ -89,6 +89,78 @@ public struct ResumeToken: Codable, Sendable, Equatable {
     public var timestampEpochMillis: Int64
 }
 
+public enum ObjectControlKind: String, Codable, Sendable, Equatable, CaseIterable {
+    case manifestAck
+    case pieceAck
+    case missingPieces
+    case resumeToken
+    case transferReceipt
+    case transferFailed
+    case cancelled
+}
+
+public struct ObjectControlEnvelope: Codable, Sendable, Equatable {
+    public var objectProtocolVersion: UInt8
+    public var kind: ObjectControlKind
+    public var objectId: String
+    public var senderId: PeerID
+    public var recipientId: PeerID
+    public var transferId: TransferID?
+    public var pieceIndexes: [Int]
+    public var resumeToken: ResumeToken?
+    public var failureReason: String?
+    public var updatedAtEpochMillis: Int64
+
+    public init(
+        objectProtocolVersion: UInt8 = 1,
+        kind: ObjectControlKind,
+        objectId: String,
+        senderId: PeerID,
+        recipientId: PeerID,
+        transferId: TransferID? = nil,
+        pieceIndexes: [Int] = [],
+        resumeToken: ResumeToken? = nil,
+        failureReason: String? = nil,
+        updatedAtEpochMillis: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
+    ) {
+        self.objectProtocolVersion = objectProtocolVersion
+        self.kind = kind
+        self.objectId = objectId
+        self.senderId = senderId
+        self.recipientId = recipientId
+        self.transferId = transferId
+        self.pieceIndexes = pieceIndexes
+        self.resumeToken = resumeToken
+        self.failureReason = failureReason
+        self.updatedAtEpochMillis = updatedAtEpochMillis
+    }
+}
+
+public struct ManifestAck: Codable, Sendable, Equatable {
+    public var objectProtocolVersion: UInt8
+    public var objectId: String
+    public var transferId: TransferID
+}
+
+public struct PieceAck: Codable, Sendable, Equatable {
+    public var objectProtocolVersion: UInt8
+    public var objectId: String
+    public var pieceIndexes: [Int]
+}
+
+public struct MissingPiecesRequest: Codable, Sendable, Equatable {
+    public var objectProtocolVersion: UInt8
+    public var objectId: String
+    public var pieceIndexes: [Int]
+}
+
+public struct TransferFailure: Codable, Sendable, Equatable {
+    public var objectProtocolVersion: UInt8
+    public var objectId: String
+    public var transferId: TransferID
+    public var reason: String
+}
+
 public struct RelayToken: Codable, Sendable, Equatable {
     public var objectProtocolVersion: UInt8
     public var objectId: String

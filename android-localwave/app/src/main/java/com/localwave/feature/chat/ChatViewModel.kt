@@ -9,6 +9,7 @@ import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
+import com.localwave.core.model.TransferRecord
 import com.localwave.core.model.WakeButtonState
 import com.localwave.core.protocol.LocalWaveEngine
 import com.localwave.core.protocol.ProtocolJson
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 data class ChatUiState(
     val peer: PeerProfile? = null,
     val messages: List<ChatMessage> = emptyList(),
+    val transfers: List<TransferRecord> = emptyList(),
     val draft: String = "",
     val wakeState: WakeButtonState = WakeButtonState.IDLE,
     val error: String? = null
@@ -47,6 +49,13 @@ class ChatViewModel(private val engine: LocalWaveEngine, private val peerId: Pee
         scope.launch {
             engine.observeMessages(peerId).collectLatest { messages ->
                 _state.update { it.copy(messages = messages.sortedBy { message -> message.sentAtEpochMillis }) }
+            }
+        }
+        scope.launch {
+            engine.observeTransfers().collectLatest { transfers ->
+                _state.update {
+                    it.copy(transfers = transfers.filter { transfer -> transfer.peerId == peerId }.sortedByDescending { transfer -> transfer.updatedAtEpochMillis })
+                }
             }
         }
     }
@@ -122,10 +131,7 @@ class ChatViewModel(private val engine: LocalWaveEngine, private val peerId: Pee
 
     suspend fun importSharePackage(context: Context, uri: Uri) {
         try {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                ?: throw IllegalArgumentException("Package could not be opened.")
-            val packageFile = ProtocolJson.decodeEncryptedSharePackage(bytes)
-            engine.importEncryptedSharePackage(packageFile)
+            LocalWaveShareBridge.importSharePackage(context, engine, uri)
         } catch (error: Throwable) {
             _state.update { it.copy(error = error.message ?: "Encrypted package could not be imported.") }
         }
@@ -150,5 +156,12 @@ object LocalWaveShareBridge {
         val file = File(dir, "$safeName.${EncryptedSharePackage.FILE_EXTENSION}")
         file.writeBytes(ProtocolJson.encodeEncryptedSharePackage(packageFile))
         return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+
+    suspend fun importSharePackage(context: Context, engine: LocalWaveEngine, uri: Uri) {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalArgumentException("Package could not be opened.")
+        val packageFile = ProtocolJson.decodeEncryptedSharePackage(bytes)
+        engine.importEncryptedSharePackage(packageFile)
     }
 }

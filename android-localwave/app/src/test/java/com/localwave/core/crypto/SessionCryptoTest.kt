@@ -12,6 +12,8 @@ import com.localwave.core.model.RelayChunk
 import com.localwave.core.model.RelayChunkStore
 import com.localwave.core.model.LocalWaveObjectPackage
 import com.localwave.core.model.ObjectPieceKind
+import com.localwave.core.model.ObjectControlEnvelope
+import com.localwave.core.model.ObjectControlKind
 import com.localwave.core.protocol.ObjectTransferCrypto
 import com.localwave.core.protocol.ObjectTransferJson
 import com.localwave.core.protocol.ProtocolJson
@@ -104,6 +106,30 @@ class SessionCryptoTest {
         assertEquals(intro.fingerprint, decoded.fingerprint)
         assertEquals(intro.agreementPublicKey.toList(), decoded.agreementPublicKey.toList())
         assertEquals(intro.sentAtEpochMillis, decoded.sentAtEpochMillis)
+    }
+
+    @Test
+    fun objectControlEnvelopeRoundTripsForPieceAck() {
+        val transferId = UUID.randomUUID()
+        val control = ObjectControlEnvelope(
+            kind = ObjectControlKind.PIECE_ACK,
+            objectId = "a".repeat(64),
+            senderId = TestIdentities.bob.identity.peerId,
+            recipientId = TestIdentities.alice.identity.peerId,
+            transferId = transferId,
+            pieceIndexes = listOf(0, 1, 2, 3),
+            updatedAtEpochMillis = 1_778_900_000_000
+        )
+
+        val decoded = ObjectTransferJson.decodeObjectControl(ObjectTransferJson.encodeObjectControl(control))
+
+        assertEquals(1, decoded.objectProtocolVersion.toInt())
+        assertEquals(ObjectControlKind.PIECE_ACK, decoded.kind)
+        assertEquals(control.objectId, decoded.objectId)
+        assertEquals(transferId, decoded.transferId)
+        assertEquals(listOf(0, 1, 2, 3), decoded.pieceIndexes)
+        assertEquals(null, decoded.resumeToken)
+        assertEquals(null, decoded.failureReason)
     }
 
     @Test
