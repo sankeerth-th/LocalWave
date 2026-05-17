@@ -6,9 +6,9 @@ LocalWave is an offline, no-signup, Bluetooth-only private messaging app for nea
 
 ## Open And Build
 
-Open `/Users/sanks04/Desktop/Random-1/android-localwave` in Android Studio.
+Open the repository's `android-localwave` folder in Android Studio.
 
-If Android Studio shows “Code insight unavailable” or no run configuration, open the `android-localwave` folder directly rather than the multi-root parent. This workspace keeps `local.properties` ignored; on this machine it points Gradle at `/Users/sanks04/Library/Android/sdk`.
+If Android Studio shows “Code insight unavailable” or no run configuration, open the `android-localwave` folder directly rather than the multi-root parent. This workspace keeps `local.properties` ignored so local Android SDK paths are not committed.
 
 ```bash
 ./gradlew test
@@ -53,7 +53,7 @@ GATT remains the control plane for manifest announcements, receipts, wake, text 
 
 ## iPhone Interop Testing
 
-Use the iOS reference at `/Users/sanks04/Desktop/Random-1/ios-localwave`.
+Use the iOS reference in the repository's `ios-localwave` folder.
 
 1. Install iOS LocalWave on a physical iPhone.
 2. Install Android LocalWave on a physical Android phone.

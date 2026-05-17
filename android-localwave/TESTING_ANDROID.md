@@ -66,7 +66,7 @@ Manual UI path:
 
 ## Android To iPhone
 
-1. Install this Android app and `/Users/sanks04/Desktop/Random-1/ios-localwave`.
+1. Install this Android app and the repository's iOS app from `ios-localwave`.
 2. Use the same Frequency Code.
 3. Verify Android/iPhone discovery, messages both directions, Wake both directions, and different-code invisibility.
 
