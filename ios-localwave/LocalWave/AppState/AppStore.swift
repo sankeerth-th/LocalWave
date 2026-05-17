@@ -11,6 +11,7 @@ public final class AppStore: ObservableObject {
     public let environment: AppEnvironment
     private let defaults: UserDefaults
     private var hasStartedEngine = false
+    private var isStartingEngine = false
 
     @Published public private(set) var isOnboardingComplete: Bool
     @Published public private(set) var displayName: String
@@ -43,7 +44,7 @@ public final class AppStore: ObservableObject {
     }
 
     public func startIfReady() async {
-        guard isOnboardingComplete, !hasStartedEngine, let channel = currentChannel else {
+        guard isOnboardingComplete, !hasStartedEngine, !isStartingEngine, let channel = currentChannel else {
             return
         }
 
@@ -82,9 +83,17 @@ public final class AppStore: ObservableObject {
     }
 
     private func startEngine(channel: ChannelCode, displayName: String) async throws {
-        try await environment.engine.start(channel: channel, displayName: displayName)
-        hasStartedEngine = true
-        lastStartError = nil
+        guard !hasStartedEngine, !isStartingEngine else { return }
+        isStartingEngine = true
+        do {
+            try await environment.engine.start(channel: channel, displayName: displayName)
+            hasStartedEngine = true
+            lastStartError = nil
+            isStartingEngine = false
+        } catch {
+            isStartingEngine = false
+            throw error
+        }
     }
 
     private func persistSetup() {
@@ -106,4 +115,3 @@ extension AppStore {
         return store
     }
 }
-

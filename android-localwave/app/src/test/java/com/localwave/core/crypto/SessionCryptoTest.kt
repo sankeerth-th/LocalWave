@@ -1,9 +1,11 @@
 package com.localwave.core.crypto
 
 import com.localwave.core.model.ChannelCode
+import com.localwave.core.model.DeliveryReceipt
 import com.localwave.core.model.DeliveryRoute
 import com.localwave.core.model.EncryptedSharePackage
 import com.localwave.core.model.OutboundAttachment
+import com.localwave.core.model.PeerIntroEnvelope
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
 import com.localwave.core.model.RelayChunk
@@ -66,6 +68,42 @@ class SessionCryptoTest {
 
         bobCrypto.decryptWake(decoded, TestIdentities.alicePeer, channel)
         assertEquals(envelope.timestampEpochMillis, decoded.timestampEpochMillis)
+    }
+
+    @Test
+    fun deliveryReceiptRoundTripsForMessageStatusAck() {
+        val receipt = DeliveryReceipt(
+            messageId = UUID.randomUUID(),
+            senderId = TestIdentities.alice.identity.peerId,
+            recipientId = TestIdentities.bob.identity.peerId,
+            deliveredAtEpochMillis = 123456789L
+        )
+
+        val decoded = ProtocolJson.decodeDeliveryReceipt(ProtocolJson.encodeDeliveryReceipt(receipt))
+
+        assertEquals(receipt.messageId, decoded.messageId)
+        assertEquals(receipt.senderId, decoded.senderId)
+        assertEquals(receipt.recipientId, decoded.recipientId)
+        assertEquals(receipt.deliveredAtEpochMillis, decoded.deliveredAtEpochMillis)
+    }
+
+    @Test
+    fun peerIntroRoundTripsWithIdentityPublicKey() {
+        val intro = PeerIntroEnvelope(
+            peerId = TestIdentities.alice.identity.peerId,
+            displayName = "Alice",
+            fingerprint = TestIdentities.alice.identity.fingerprint,
+            agreementPublicKey = TestIdentities.alice.identity.agreementPublicKey,
+            sentAtEpochMillis = 123456789L
+        )
+
+        val decoded = ProtocolJson.decodePeerIntro(ProtocolJson.encodePeerIntro(intro))
+
+        assertEquals(intro.peerId, decoded.peerId)
+        assertEquals(intro.displayName, decoded.displayName)
+        assertEquals(intro.fingerprint, decoded.fingerprint)
+        assertEquals(intro.agreementPublicKey.toList(), decoded.agreementPublicKey.toList())
+        assertEquals(intro.sentAtEpochMillis, decoded.sentAtEpochMillis)
     }
 
     @Test

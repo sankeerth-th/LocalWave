@@ -2,7 +2,6 @@ import SwiftUI
 
 struct FrequencyJoinView: View {
     @Binding var channelText: String
-    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -17,7 +16,6 @@ struct FrequencyJoinView: View {
                 .autocorrectionDisabled()
                 .submitLabel(.next)
                 .textFieldStyle(.roundedBorder)
-                .focused($focused)
                 .accessibilityLabel("Frequency Code")
 
             PermissionBanner(
@@ -27,7 +25,5 @@ struct FrequencyJoinView: View {
             Spacer()
         }
         .padding(LWTheme.screenPadding)
-        .onAppear { focused = true }
     }
 }
-

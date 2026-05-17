@@ -10,6 +10,7 @@ import com.localwave.core.model.AttachmentEnvelope
 import com.localwave.core.model.AttachmentPlaintext
 import com.localwave.core.model.ChannelCode
 import com.localwave.core.model.ChatMessage
+import com.localwave.core.model.DeliveryReceipt
 import com.localwave.core.model.DeliveryRoute
 import com.localwave.core.model.EncryptedSharePackage
 import com.localwave.core.model.ImportedSharePackage
@@ -22,6 +23,7 @@ import com.localwave.core.model.ObjectPiece
 import com.localwave.core.model.ObjectPieceBatch
 import com.localwave.core.model.OutboundAttachment
 import com.localwave.core.model.PeerId
+import com.localwave.core.model.PeerIntroEnvelope
 import com.localwave.core.model.PeerProfile
 import com.localwave.core.model.PresenceState
 import com.localwave.core.model.EncryptedObjectManifest
@@ -101,19 +103,26 @@ class RealLocalWaveEngine(
     override suspend fun sendMessage(text: String, to: PeerId): MessageId {
         val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
         val peer = peers.value.firstOrNull { it.id == to } ?: peerRepository.peer(to) ?: throw IllegalArgumentException("Peer unavailable.")
-        val message = ChatMessage(peerId = to, text = text, direction = MessageDirection.OUTGOING, status = MessageStatus.PENDING)
-        messageRepository.save(message)
         val envelope = crypto.encryptMessage(text, peer, replayCounter++, activeChannel)
-        val body = ProtocolJson.encodeMessageEnvelope(envelope)
-        transport.send(body, TransportPacketKind.MESSAGE, to)
-        messageRepository.updateStatus(message.id, MessageStatus.SENT)
-        return message.id
+        val message = ChatMessage(id = envelope.messageId, peerId = to, text = text, sentAtEpochMillis = envelope.timestampEpochMillis, direction = MessageDirection.OUTGOING, status = MessageStatus.PENDING)
+        messageRepository.save(message)
+        return try {
+            val body = ProtocolJson.encodeMessageEnvelope(envelope)
+            runCatching { sendPresence(to) }
+            transport.send(body, TransportPacketKind.MESSAGE, to)
+            messageRepository.updateStatus(message.id, MessageStatus.SENT)
+            message.id
+        } catch (error: Throwable) {
+            messageRepository.updateStatus(message.id, MessageStatus.FAILED)
+            throw error
+        }
     }
 
     override suspend fun sendWake(to: PeerId) {
         val activeChannel = channel ?: throw IllegalArgumentException("Channel is not active.")
         val peer = peers.value.firstOrNull { it.id == to } ?: peerRepository.peer(to) ?: throw IllegalArgumentException("Peer unavailable.")
         val wake = crypto.encryptWake(peer, replayCounter++, activeChannel)
+        runCatching { sendPresence(to) }
         transport.send(ProtocolJson.encodeWakeEnvelope(wake), TransportPacketKind.WAKE, to)
     }
 
@@ -133,6 +142,7 @@ class RealLocalWaveEngine(
             status = TransferStatus.TRANSFERRING
         )
         upsertTransfer(transfer)
+        runCatching { sendPresence(to) }
         transport.send(ObjectTransferJson.encodeManifest(packageFile.manifest).toString().encodeToByteArray(), TransportPacketKind.OBJECT_MANIFEST, to)
         packageFile.pieces.chunked(4).forEach { pieces ->
             transport.sendBulk(ObjectTransferJson.encodePieceBatch(ObjectPieceBatch(objectId = packageFile.manifest.objectId, pieces = pieces)), to)
@@ -249,12 +259,15 @@ class RealLocalWaveEngine(
                 val envelope = ProtocolJson.decodeMessageEnvelope(assembled.body)
                 val peer = peers.value.firstOrNull { it.id == envelope.senderId } ?: peerRepository.peer(envelope.senderId) ?: return
                 val text = crypto.decryptMessage(envelope, peer, activeChannel)
+                markPeerAvailable(peer)
                 messageRepository.save(ChatMessage(envelope.messageId, peer.id, text, envelope.timestampEpochMillis, MessageDirection.INCOMING, MessageStatus.DELIVERED))
+                sendDeliveryReceipt(envelope, peer)
             }
             TransportPacketKind.WAKE -> {
                 val envelope = ProtocolJson.decodeWakeEnvelope(assembled.body)
                 val peer = peers.value.firstOrNull { it.id == envelope.senderId } ?: peerRepository.peer(envelope.senderId) ?: return
                 crypto.decryptWake(envelope, peer, activeChannel)
+                markPeerAvailable(peer)
                 if (wakeNotificationManager.canNotify()) {
                     wakeNotificationManager.showWake(peer.displayName)
                 } else {
@@ -265,6 +278,7 @@ class RealLocalWaveEngine(
                 val manifest = ObjectTransferJson.decodeManifest(JSONObject(assembled.body.decodeToString()))
                 incomingObjects.getOrPut(manifest.objectId) { IncomingObjectState() }.manifest = manifest
                 objectStore?.store(manifest)
+                (peers.value.firstOrNull { it.id == manifest.senderId } ?: peerRepository.peer(manifest.senderId))?.let { markPeerAvailable(it) }
                 upsertTransfer(
                     TransferRecord(
                         id = transferIdFor(manifest.objectId),
@@ -278,12 +292,32 @@ class RealLocalWaveEngine(
                 tryCompleteObject(manifest.objectId)
             }
             TransportPacketKind.RECEIPT -> {
-                val receipt = ObjectTransferJson.decodeReceipt(assembled.body)
-                transfers.value = transfers.value.map {
-                    if (it.id == receipt.transferId) it.copy(status = TransferStatus.COMPLETED, updatedAtEpochMillis = System.currentTimeMillis()) else it
+                val deliveryReceipt = runCatching { ProtocolJson.decodeDeliveryReceipt(assembled.body) }.getOrNull()
+                if (deliveryReceipt != null) {
+                    messageRepository.updateStatus(deliveryReceipt.messageId, MessageStatus.DELIVERED)
+                    (peers.value.firstOrNull { it.id == deliveryReceipt.recipientId } ?: peerRepository.peer(deliveryReceipt.recipientId))?.let { markPeerAvailable(it) }
+                } else {
+                    val receipt = ObjectTransferJson.decodeReceipt(assembled.body)
+                    transfers.value = transfers.value.map {
+                        if (it.id == receipt.transferId) it.copy(status = TransferStatus.COMPLETED, updatedAtEpochMillis = System.currentTimeMillis()) else it
+                    }
+                    (peers.value.firstOrNull { it.id == receipt.recipientId } ?: peerRepository.peer(receipt.recipientId))?.let { markPeerAvailable(it) }
                 }
             }
-            TransportPacketKind.PRESENCE,
+            TransportPacketKind.PRESENCE -> {
+                val intro = ProtocolJson.decodePeerIntro(assembled.body)
+                markPeerAvailable(
+                    PeerProfile(
+                        id = intro.peerId,
+                        displayName = intro.displayName,
+                        fingerprint = intro.fingerprint,
+                        rssi = 0,
+                        lastSeenEpochMillis = intro.sentAtEpochMillis,
+                        state = PresenceState.AVAILABLE,
+                        publicKeyData = intro.agreementPublicKey
+                    )
+                )
+            }
             TransportPacketKind.OBJECT_CONTROL -> Unit
         }
     }
@@ -372,6 +406,38 @@ class RealLocalWaveEngine(
         return peer
     }
 
+    private suspend fun markPeerAvailable(peer: PeerProfile) {
+        val updated = peer.copy(state = PresenceState.AVAILABLE, lastSeenEpochMillis = System.currentTimeMillis())
+        peerRepository.upsert(updated)
+        peers.value = (peers.value.filterNot { it.id == updated.id } + updated).sortedBy { it.displayName.lowercase() }
+    }
+
+    private suspend fun sendDeliveryReceipt(envelope: com.localwave.core.model.MessageEnvelope, peer: PeerProfile) {
+        runCatching {
+            val identity = identityStore.loadOrCreateIdentity(displayName.ifBlank { "Local User" })
+            val receipt = DeliveryReceipt(
+                messageId = envelope.messageId,
+                senderId = envelope.senderId,
+                recipientId = identity.peerId,
+                deliveredAtEpochMillis = System.currentTimeMillis()
+            )
+            transport.send(ProtocolJson.encodeDeliveryReceipt(receipt), TransportPacketKind.RECEIPT, peer.id)
+        }.onFailure {
+            transportState.value = transportState.value.copy(lastError = "delivery receipt pending")
+        }
+    }
+
+    private suspend fun sendPresence(to: PeerId) {
+        val identity = identityStore.loadOrCreateIdentity(displayName.ifBlank { "Local User" })
+        val intro = PeerIntroEnvelope(
+            peerId = identity.peerId,
+            displayName = identity.displayName,
+            fingerprint = identity.fingerprint,
+            agreementPublicKey = identity.agreementPublicKey
+        )
+        transport.send(ProtocolJson.encodePeerIntro(intro), TransportPacketKind.PRESENCE, to)
+    }
+
     private fun upsertTransfer(record: TransferRecord) {
         transfers.value = transfers.value.filterNot { it.id == record.id } + record
     }
@@ -454,6 +520,49 @@ object ProtocolJson {
                 nonce = Base64.getDecoder().decode(json.getString("nonce")),
                 ciphertext = Base64.getDecoder().decode(json.getString("ciphertext")),
                 tag = Base64.getDecoder().decode(json.getString("tag"))
+            )
+        }
+
+    fun encodeDeliveryReceipt(receipt: DeliveryReceipt): ByteArray =
+        JSONObject()
+            .put("version", 1)
+            .put("messageId", receipt.messageId.toString().uppercase())
+            .put("senderId", receipt.senderId.value)
+            .put("recipientId", receipt.recipientId.value)
+            .put("deliveredAt", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(receipt.deliveredAtEpochMillis)))
+            .toString()
+            .encodeToByteArray()
+
+    fun decodeDeliveryReceipt(bytes: ByteArray): DeliveryReceipt =
+        JSONObject(bytes.decodeToString()).let { json ->
+            DeliveryReceipt(
+                messageId = UUID.fromString(json.getString("messageId")),
+                senderId = PeerId(json.getString("senderId")),
+                recipientId = PeerId(json.getString("recipientId")),
+                deliveredAtEpochMillis = Instant.parse(json.getString("deliveredAt")).toEpochMilli()
+            )
+        }
+
+    fun encodePeerIntro(intro: PeerIntroEnvelope): ByteArray =
+        JSONObject()
+            .put("version", intro.version.toInt())
+            .put("peerId", intro.peerId.value)
+            .put("displayName", intro.displayName)
+            .put("fingerprint", intro.fingerprint)
+            .put("agreementPublicKey", Base64.getEncoder().encodeToString(intro.agreementPublicKey))
+            .put("sentAt", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(intro.sentAtEpochMillis)))
+            .toString()
+            .encodeToByteArray()
+
+    fun decodePeerIntro(bytes: ByteArray): PeerIntroEnvelope =
+        JSONObject(bytes.decodeToString()).let { json ->
+            PeerIntroEnvelope(
+                version = json.optInt("version", 1).toUByte(),
+                peerId = PeerId(json.getString("peerId")),
+                displayName = json.getString("displayName"),
+                fingerprint = json.getString("fingerprint"),
+                agreementPublicKey = Base64.getDecoder().decode(json.getString("agreementPublicKey")),
+                sentAtEpochMillis = Instant.parse(json.getString("sentAt")).toEpochMilli()
             )
         }
 

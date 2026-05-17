@@ -147,6 +147,31 @@ public struct DeliveryReceipt: Codable, Sendable, Equatable {
     public var deliveredAt: Date
 }
 
+public struct PeerIntroEnvelope: Codable, Sendable, Equatable {
+    public var version: UInt8
+    public var peerId: PeerID
+    public var displayName: String
+    public var fingerprint: String
+    public var agreementPublicKey: Data
+    public var sentAt: Date
+
+    public init(
+        version: UInt8 = 1,
+        peerId: PeerID,
+        displayName: String,
+        fingerprint: String,
+        agreementPublicKey: Data,
+        sentAt: Date = Date()
+    ) {
+        self.version = version
+        self.peerId = peerId
+        self.displayName = displayName
+        self.fingerprint = fingerprint
+        self.agreementPublicKey = agreementPublicKey
+        self.sentAt = sentAt
+    }
+}
+
 public struct InviteAuthProof: Codable, Sendable, Equatable {
     public var version: UInt8
     public var senderId: PeerID

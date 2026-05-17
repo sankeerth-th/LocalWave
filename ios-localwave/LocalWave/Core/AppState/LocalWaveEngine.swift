@@ -81,17 +81,23 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
     public func sendMessage(text: String, to peerId: PeerID) async throws -> MessageID {
         guard let channel else { throw LocalWaveError.invalidChannelCode }
         let peer = try await resolvePeer(peerId)
-        let message = ChatMessage(peerId: peerId, text: text, direction: .outgoing, status: .pending)
+        let envelope = try await crypto.encryptMessage(text, to: peer, counter: nextCounter(), channel: channel)
+        let message = ChatMessage(id: envelope.messageId, peerId: peerId, text: text, sentAt: envelope.timestamp, direction: .outgoing, status: .pending)
         try await messageRepository.save(message)
         await publishMessages(peerId: peerId)
 
-        let envelope = try await crypto.encryptMessage(text, to: peer, counter: nextCounter(), channel: channel)
-        let body = try SecureEnvelopeCodec.encode(envelope)
-        try await transport.send(body, kind: .message, to: peerId)
-
-        try await messageRepository.updateStatus(messageId: message.id, status: .sent)
-        await publishMessages(peerId: peerId)
-        return message.id
+        do {
+            let body = try SecureEnvelopeCodec.encode(envelope)
+            try? await sendPresence(to: peerId)
+            try await transport.send(body, kind: .message, to: peerId)
+            try await messageRepository.updateStatus(messageId: message.id, status: .sent)
+            await publishMessages(peerId: peerId)
+            return message.id
+        } catch {
+            try? await messageRepository.updateStatus(messageId: message.id, status: .failed)
+            await publishMessages(peerId: peerId)
+            throw error
+        }
     }
 
     public func sendWake(to peerId: PeerID) async throws {
@@ -99,6 +105,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
         let peer = try await resolvePeer(peerId)
         let wake = try await crypto.encryptWake(to: peer, counter: nextCounter(), channel: channel)
         let body = try SecureEnvelopeCodec.encode(wake)
+        try? await sendPresence(to: peerId)
         try await transport.send(body, kind: .wake, to: peerId)
     }
 
@@ -120,6 +127,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
             failureReason: nil
         )
         upsertTransfer(transfer)
+        try? await sendPresence(to: peerId)
         try await transport.send(try ObjectTransferCodec.encode(objectPackage.manifest), kind: .objectManifest, to: peerId)
         for pieces in objectPackage.pieces.chunked(size: 4) {
             let batch = ObjectPieceBatch(objectProtocolVersion: 1, objectId: objectPackage.manifest.objectId, pieces: pieces)
@@ -338,6 +346,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
                 let sender = knownSender ?? storedSender
                 guard let sender else { return }
                 let text = try await crypto.decryptMessage(envelope, from: sender, channel: channel)
+                await markPeerAvailable(sender)
                 let message = ChatMessage(
                     id: envelope.messageId,
                     peerId: sender.id,
@@ -348,6 +357,7 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
                 )
                 try await messageRepository.save(message)
                 await publishMessages(peerId: sender.id)
+                await sendDeliveryReceipt(for: envelope, to: sender)
             case .wake:
                 let envelope = try SecureEnvelopeCodec.decode(WakeEnvelope.self, from: assembled.body)
                 let knownSender = peers.first { $0.id == envelope.senderId }
@@ -355,11 +365,15 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
                 let sender = knownSender ?? storedSender
                 guard let sender else { return }
                 try await crypto.decryptWake(envelope, from: sender, channel: channel)
+                await markPeerAvailable(sender)
                 await notificationService.notifyWake(from: sender.displayName, channel: channel)
             case .objectManifest:
                 let manifest = try ObjectTransferCodec.decode(EncryptedObjectManifest.self, from: assembled.body)
                 incomingObjects[manifest.objectId, default: IncomingObjectState()].manifest = manifest
                 try? await objectStore.store(manifest)
+                if let sender = await knownPeer(id: manifest.senderId) {
+                    await markPeerAvailable(sender)
+                }
                 upsertTransfer(TransferRecord(
                     id: Self.transferId(for: manifest.objectId),
                     peerId: manifest.senderId,
@@ -372,13 +386,35 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
                 ))
                 await tryCompleteObject(manifest.objectId)
             case .receipt:
-                let receipt = try ObjectTransferCodec.decode(TransferReceipt.self, from: assembled.body)
-                if let index = transfers.firstIndex(where: { $0.id == receipt.transferId }) {
-                    transfers[index].status = .completed
-                    transfers[index].updatedAt = Date()
-                    publishTransfers()
+                if let deliveryReceipt = try? SecureEnvelopeCodec.decode(DeliveryReceipt.self, from: assembled.body) {
+                    try await messageRepository.updateStatus(messageId: deliveryReceipt.messageId, status: .delivered)
+                    await publishMessages(peerId: deliveryReceipt.recipientId)
+                    if let recipient = await knownPeer(id: deliveryReceipt.recipientId) {
+                        await markPeerAvailable(recipient)
+                    }
+                } else {
+                    let receipt = try ObjectTransferCodec.decode(TransferReceipt.self, from: assembled.body)
+                    if let index = transfers.firstIndex(where: { $0.id == receipt.transferId }) {
+                        transfers[index].status = .completed
+                        transfers[index].updatedAt = Date()
+                        publishTransfers()
+                    }
+                    if let recipient = await knownPeer(id: receipt.recipientId) {
+                        await markPeerAvailable(recipient)
+                    }
                 }
-            case .presence, .objectControl:
+            case .presence:
+                let intro = try SecureEnvelopeCodec.decode(PeerIntroEnvelope.self, from: assembled.body)
+                await markPeerAvailable(PeerProfile(
+                    id: intro.peerId,
+                    displayName: intro.displayName,
+                    fingerprint: intro.fingerprint,
+                    rssi: 0,
+                    lastSeen: intro.sentAt,
+                    state: .available,
+                    publicKeyData: intro.agreementPublicKey
+                ))
+            case .objectControl:
                 break
             }
         } catch {
@@ -399,6 +435,54 @@ public final class LocalWaveEngine: LocalWaveEngineProtocol, @unchecked Sendable
             throw LocalWaveError.peerUnavailable
         }
         return peer
+    }
+
+    private func knownPeer(id peerId: PeerID) async -> PeerProfile? {
+        if let peer = peers.first(where: { $0.id == peerId }) {
+            return peer
+        }
+        return try? await peerRepository.peer(id: peerId)
+    }
+
+    private func markPeerAvailable(_ peer: PeerProfile) async {
+        var updated = peer
+        updated.state = .available
+        updated.lastSeen = Date()
+        if let index = peers.firstIndex(where: { $0.id == peer.id }) {
+            peers[index] = updated
+        } else {
+            peers.append(updated)
+        }
+        try? await peerRepository.upsert(updated)
+        publishPeers()
+    }
+
+    private func sendDeliveryReceipt(for envelope: MessageEnvelope, to sender: PeerProfile) async {
+        do {
+            let identity = try await identityStore.loadOrCreateIdentity(displayName: displayName.isEmpty ? "Local User" : displayName)
+            let receipt = DeliveryReceipt(
+                messageId: envelope.messageId,
+                senderId: envelope.senderId,
+                recipientId: identity.peerId,
+                deliveredAt: Date()
+            )
+            let encoded = try SecureEnvelopeCodec.encode(receipt)
+            try await transport.send(encoded, kind: .receipt, to: sender.id)
+        } catch {
+            transportState.lastError = "delivery receipt pending"
+            publishState()
+        }
+    }
+
+    private func sendPresence(to peerId: PeerID) async throws {
+        let identity = try await identityStore.loadOrCreateIdentity(displayName: displayName.isEmpty ? "Local User" : displayName)
+        let intro = PeerIntroEnvelope(
+            peerId: identity.peerId,
+            displayName: identity.displayName,
+            fingerprint: identity.fingerprint,
+            agreementPublicKey: identity.agreementPublicKey
+        )
+        try await transport.send(try SecureEnvelopeCodec.encode(intro), kind: .presence, to: peerId)
     }
 
     private func tryCompleteObject(_ objectId: String) async {

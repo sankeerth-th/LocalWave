@@ -49,6 +49,37 @@ final class CryptoTests: XCTestCase {
         XCTAssertEqual(decoded.timestamp.timeIntervalSince1970, envelope.timestamp.timeIntervalSince1970, accuracy: 0.001)
     }
 
+    func testDeliveryReceiptRoundTripsForMessageStatusAck() throws {
+        let receipt = DeliveryReceipt(
+            messageId: UUID(),
+            senderId: TestIdentities.alice.identity.peerId,
+            recipientId: TestIdentities.bob.identity.peerId,
+            deliveredAt: Date()
+        )
+
+        let decoded = try SecureEnvelopeCodec.decode(DeliveryReceipt.self, from: SecureEnvelopeCodec.encode(receipt))
+
+        XCTAssertEqual(decoded.messageId, receipt.messageId)
+        XCTAssertEqual(decoded.senderId, receipt.senderId)
+        XCTAssertEqual(decoded.recipientId, receipt.recipientId)
+        XCTAssertEqual(decoded.deliveredAt.timeIntervalSince1970, receipt.deliveredAt.timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    func testPeerIntroRoundTripsWithIdentityPublicKey() throws {
+        let intro = PeerIntroEnvelope(
+            peerId: TestIdentities.alice.identity.peerId,
+            displayName: "Alice",
+            fingerprint: TestIdentities.alice.identity.fingerprint,
+            agreementPublicKey: TestIdentities.alice.identity.agreementPublicKey
+        )
+
+        let decoded = try SecureEnvelopeCodec.decode(PeerIntroEnvelope.self, from: SecureEnvelopeCodec.encode(intro))
+
+        XCTAssertEqual(decoded.peerId, intro.peerId)
+        XCTAssertEqual(decoded.fingerprint, intro.fingerprint)
+        XCTAssertEqual(decoded.agreementPublicKey, intro.agreementPublicKey)
+    }
+
     func testAttachmentEnvelopeDecryptsAfterJsonRoundTrip() async throws {
         let alice = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.alice))
         let bob = SessionCrypto(identityStore: InMemoryIdentityStore(keyPair: TestIdentities.bob))

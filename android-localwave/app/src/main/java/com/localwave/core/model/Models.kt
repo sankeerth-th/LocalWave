@@ -485,6 +485,15 @@ data class DeliveryReceipt(
     val deliveredAtEpochMillis: Long
 )
 
+data class PeerIntroEnvelope(
+    val version: UByte = 1u,
+    val peerId: PeerId,
+    val displayName: String,
+    val fingerprint: String,
+    val agreementPublicKey: ByteArray,
+    val sentAtEpochMillis: Long = System.currentTimeMillis()
+)
+
 enum class TransportPacketKind(val wireValue: UByte) {
     PRESENCE(1u),
     MESSAGE(2u),

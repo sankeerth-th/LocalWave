@@ -10,6 +10,7 @@ struct MessageComposerView: View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField("Message over LocalWave...", text: $text, axis: .vertical)
                 .lineLimit(1...5)
+                .autocorrectionDisabled()
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
@@ -29,4 +30,3 @@ struct MessageComposerView: View {
         .background(LWMaterials.subtle)
     }
 }
-

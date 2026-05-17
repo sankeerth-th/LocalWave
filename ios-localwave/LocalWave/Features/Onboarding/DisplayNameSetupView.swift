@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DisplayNameSetupView: View {
     @Binding var displayName: String
-    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -14,9 +13,9 @@ struct DisplayNameSetupView: View {
 
             TextField("Display name", text: $displayName)
                 .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
                 .submitLabel(.next)
                 .textFieldStyle(.roundedBorder)
-                .focused($focused)
                 .accessibilityLabel("Display name")
 
             PermissionBanner(
@@ -25,7 +24,5 @@ struct DisplayNameSetupView: View {
             Spacer()
         }
         .padding(LWTheme.screenPadding)
-        .onAppear { focused = true }
     }
 }
-
